@@ -192,7 +192,7 @@ UI_TEXT = {
         "score_detail": "📊 Score Details",
         "start_learning": "🚀 Start Learning",
         "skip_desc": "Test skipped. Starting at A2 level.",
-        "progress_steps": ["①Native", "②Writing", "③Correction", "④Speaking", "⑤Pronunciation", "⑥Listening", "⑦Reading", "⑧Quiz", "⑨Feedback"],
+        "progress_steps": ["1.Native", "2.Writing", "3.Correction", "4.Speaking", "5.Pronunciation", "6.Listening", "7.Reading", "8.Quiz", "9.Feedback"],
     },
     "日本語": {
         "what_to_say": "何を言いたいですか？",
@@ -236,7 +236,7 @@ UI_TEXT = {
         "score_detail": "📊 スコア詳細",
         "start_learning": "🚀 学習を開始する",
         "skip_desc": "テストをスキップしました。A2レベルで開始します。",
-        "progress_steps": ["①日本語", "②Writing", "③添削", "④Speaking", "⑤発音添削", "⑥Listening", "⑦Reading", "⑧Quiz", "⑨Feedback"],
+        "progress_steps": ["1.日本語", "2.Writing", "3.添削", "4.Speaking", "5.発音添削", "6.Listening", "7.Reading", "8.Quiz", "9.Feedback"],
     },
     "中文": {
         "what_to_say": "你想说什么？",
@@ -280,7 +280,7 @@ UI_TEXT = {
         "score_detail": "📊 分数详情",
         "start_learning": "🚀 开始学习",
         "skip_desc": "已跳过测试。从A2级别开始。",
-        "progress_steps": ["①母语", "②写作", "③修改", "④口语", "⑤发音", "⑥听力", "⑦阅读", "⑧测验", "⑨反馈"],
+        "progress_steps": ["1.母语", "2.写作", "3.修改", "4.口语", "5.发音", "6.听力", "7.阅读", "8.测验", "9.反馈"],
     },
     "한국어": {
         "what_to_say": "무엇을 말하고 싶으세요?",
@@ -324,7 +324,7 @@ UI_TEXT = {
         "score_detail": "📊 점수 상세",
         "start_learning": "🚀 학습 시작",
         "skip_desc": "테스트를 건너뛰었습니다. A2 레벨로 시작합니다.",
-        "progress_steps": ["①모국어", "②작문", "③수정", "④말하기", "⑤발음", "⑥듣기", "⑦읽기", "⑧퀴즈", "⑨피드백"],
+        "progress_steps": ["1.모국어", "2.작문", "3.수정", "4.말하기", "5.발음", "6.듣기", "7.읽기", "8.퀴즈", "9.피드백"],
     },
     "Español": {
         "what_to_say": "¿Qué quieres decir?",
@@ -368,7 +368,7 @@ UI_TEXT = {
         "score_detail": "📊 Detalle de puntuación",
         "start_learning": "🚀 Comenzar a aprender",
         "skip_desc": "Prueba omitida. Comenzando en nivel A2.",
-        "progress_steps": ["①Nativo", "②Escritura", "③Corrección", "④Hablar", "⑤Pronunciación", "⑥Escuchar", "⑦Lectura", "⑧Quiz", "⑨Feedback"],
+        "progress_steps": ["1.Nativo", "2.Escritura", "3.Corrección", "4.Hablar", "5.Pronunciación", "6.Escuchar", "7.Lectura", "8.Quiz", "9.Feedback"],
     },
 }
 
