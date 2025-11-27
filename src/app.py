@@ -67,8 +67,23 @@ def init_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
-    # Restore CEFR level from URL params (survives iPhone sleep/reconnect)
+    # Restore from URL params (survives iPhone sleep/reconnect)
     params = st.query_params
+
+    # Language code to name mapping
+    code_to_lang = {"en": "English", "ja": "日本語", "zh": "中文", "ko": "한국어", "es": "Español"}
+
+    # Restore languages from code
+    if "native" in params and params["native"] in code_to_lang:
+        st.session_state.native_language = code_to_lang[params["native"]]
+    if "target" in params and params["target"] in code_to_lang:
+        st.session_state.target_language = code_to_lang[params["target"]]
+
+    # Restore character
+    if "char" in params and params["char"] in ["Botan", "Kasho", "Yuri", "Ojisan"]:
+        st.session_state.current_sister = params["char"]
+
+    # Restore CEFR level
     if "level" in params and not st.session_state.get("cefr_level"):
         level = params["level"]
         if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
@@ -81,12 +96,57 @@ init_session_state()
 
 # Supported languages
 LANGUAGES = {
-    "English": {"code": "en", "flag": "🇬🇧", "native_name": "English"},
+    "English": {"code": "en", "flag": "🇺🇸", "native_name": "English"},
     "日本語": {"code": "ja", "flag": "🇯🇵", "native_name": "日本語"},
     "中文": {"code": "zh", "flag": "🇨🇳", "native_name": "中文"},
     "한국어": {"code": "ko", "flag": "🇰🇷", "native_name": "한국어"},
     "Español": {"code": "es", "flag": "🇪🇸", "native_name": "Español"},
 }
+
+# Goal text by target language, in each native language
+GOALS = {
+    "English": {
+        "日本語": "英会話ができるようになる！",
+        "English": "Become fluent in English!",
+        "中文": "学会说英语！",
+        "한국어": "영어를 잘하게 되자!",
+        "Español": "¡Dominar el inglés!",
+    },
+    "日本語": {
+        "日本語": "日本語が話せるようになる！",
+        "English": "Become fluent in Japanese!",
+        "中文": "学会说日语！",
+        "한국어": "일본어를 잘하게 되자!",
+        "Español": "¡Dominar el japonés!",
+    },
+    "中文": {
+        "日本語": "中国語が話せるようになる！",
+        "English": "Become fluent in Chinese!",
+        "中文": "学会说中文！",
+        "한국어": "중국어를 잘하게 되자!",
+        "Español": "¡Dominar el chino!",
+    },
+    "한국어": {
+        "日本語": "韓国語が話せるようになる！",
+        "English": "Become fluent in Korean!",
+        "中文": "学会说韩语！",
+        "한국어": "한국어를 잘하게 되자!",
+        "Español": "¡Dominar el coreano!",
+    },
+    "Español": {
+        "日本語": "スペイン語が話せるようになる！",
+        "English": "Become fluent in Spanish!",
+        "中文": "学会说西班牙语！",
+        "한국어": "스페인어를 잘하게 되자!",
+        "Español": "¡Dominar el español!",
+    },
+}
+
+def get_goal_text():
+    """Get goal text in user's native language for their target language"""
+    target = st.session_state.get("target_language", "English")
+    native = st.session_state.get("native_language", "日本語")
+    return GOALS.get(target, {}).get(native, GOALS["English"]["日本語"])
 
 # UI text translations
 UI_TEXT = {
@@ -118,6 +178,7 @@ UI_TEXT = {
 """,
         "test_content": "**Test content:**\n1. Grammar (5 questions)\n2. Vocabulary (5 questions)\n3. Listening (3 questions)\n\nTime: ~5 minutes",
         "start_test": "📝 Start Test",
+        "retake_test": "📊 Retake Level Test",
         "skip_test": "⏭️ Skip (Start at A2)",
         "grammar_test": "📝 Grammar Test (1/3)",
         "vocab_test": "📚 Vocabulary Test (2/3)",
@@ -160,6 +221,7 @@ UI_TEXT = {
 """,
         "test_content": "**テスト内容:**\n1. 文法問題 (5問)\n2. 語彙問題 (5問)\n3. リスニング問題 (3問)\n\n所要時間: 約5分",
         "start_test": "📝 テストを開始",
+        "retake_test": "📊 レベル再測定",
         "skip_test": "⏭️ スキップ (A2で開始)",
         "grammar_test": "📝 文法テスト (1/3)",
         "vocab_test": "📚 語彙テスト (2/3)",
@@ -202,6 +264,7 @@ UI_TEXT = {
 """,
         "test_content": "**测试内容:**\n1. 语法 (5题)\n2. 词汇 (5题)\n3. 听力 (3题)\n\n时间: 约5分钟",
         "start_test": "📝 开始测试",
+        "retake_test": "📊 重新测试等级",
         "skip_test": "⏭️ 跳过 (从A2开始)",
         "grammar_test": "📝 语法测试 (1/3)",
         "vocab_test": "📚 词汇测试 (2/3)",
@@ -244,6 +307,7 @@ UI_TEXT = {
 """,
         "test_content": "**테스트 내용:**\n1. 문법 (5문제)\n2. 어휘 (5문제)\n3. 듣기 (3문제)\n\n소요시간: 약 5분",
         "start_test": "📝 테스트 시작",
+        "retake_test": "📊 레벨 재측정",
         "skip_test": "⏭️ 건너뛰기 (A2로 시작)",
         "grammar_test": "📝 문법 테스트 (1/3)",
         "vocab_test": "📚 어휘 테스트 (2/3)",
@@ -286,6 +350,7 @@ UI_TEXT = {
 """,
         "test_content": "**Contenido:**\n1. Gramática (5 preguntas)\n2. Vocabulario (5 preguntas)\n3. Comprensión auditiva (3 preguntas)\n\nTiempo: ~5 minutos",
         "start_test": "📝 Iniciar prueba",
+        "retake_test": "📊 Repetir prueba de nivel",
         "skip_test": "⏭️ Omitir (Empezar en A2)",
         "grammar_test": "📝 Prueba de gramática (1/3)",
         "vocab_test": "📚 Prueba de vocabulario (2/3)",
@@ -349,6 +414,7 @@ with st.sidebar:
         )
         if new_native != st.session_state.native_language:
             st.session_state.native_language = new_native
+            st.query_params["native"] = LANGUAGES[new_native]["code"]
             st.rerun()
 
     with col2:
@@ -363,6 +429,7 @@ with st.sidebar:
         )
         if new_target != st.session_state.target_language:
             st.session_state.target_language = new_target
+            st.query_params["target"] = LANGUAGES[new_target]["code"]
             st.rerun()
 
     st.caption(f"{LANGUAGES[st.session_state.native_language]['flag']} → {LANGUAGES[st.session_state.target_language]['flag']}")
@@ -379,7 +446,7 @@ with st.sidebar:
             <span style="color: white; font-size: 12px;">{level_info.get('level_name_jp', '')}</span>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("📊 レベル再測定", use_container_width=True):
+        if st.button(get_ui_text("retake_test"), use_container_width=True):
             st.session_state.step = 0
             st.session_state.placement_test_phase = "intro"
             st.session_state.placement_answers = {}
@@ -387,7 +454,7 @@ with st.sidebar:
             st.rerun()
         st.divider()
 
-    st.subheader("Sister")
+    st.subheader("Characters")
     for name, info in SISTERS.items():
         if st.button(
             f"{info['emoji']} {name}",
@@ -396,6 +463,7 @@ with st.sidebar:
         ):
             st.session_state.current_sister = name
             st.session_state.audio_data = None
+            st.query_params["char"] = name
             st.rerun()
 
     st.caption(f"Best for: {SISTERS[st.session_state.current_sister]['desc']}")
@@ -418,17 +486,19 @@ with st.sidebar:
         current_sister = st.session_state.get("current_sister", "Botan")
         cefr_level = st.session_state.get("cefr_level")
         level_info = st.session_state.get("level_info")
+        recorder_id = st.session_state.get("recorder_id", 0) + 1
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.current_sister = current_sister
         st.session_state.cefr_level = cefr_level
         st.session_state.level_info = level_info
+        st.session_state.recorder_id = recorder_id
         st.session_state.step = 1 if cefr_level else 0
         st.rerun()
 
 # Main content
 st.title(f"🌏 Sisters Multilingual Coach")
-st.caption(f"🎯 Goal: 英会話ができるようになる！ | Partner: {SISTERS[st.session_state.current_sister]['emoji']} {st.session_state.current_sister}")
+st.caption(f"🎯 Goal: {get_goal_text()} | Partner: {SISTERS[st.session_state.current_sister]['emoji']} {st.session_state.current_sister}")
 
 # ===========================================
 # STEP 0: Placement Test
@@ -883,6 +953,8 @@ elif st.session_state.step == 4:
         # Audio recorder (only show if no recording yet)
         if not st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
             from audio_recorder_streamlit import audio_recorder
+            # Use dynamic key to prevent cache issues on retry
+            recorder_key = f"audio_recorder_{st.session_state.get('recorder_id', 0)}"
             recorded_audio = audio_recorder(
                 text="",
                 recording_color="#e74c3c",
@@ -890,7 +962,7 @@ elif st.session_state.step == 4:
                 icon_name="microphone",
                 icon_size="2x",
                 sample_rate=16000,
-                key="audio_recorder_step4"
+                key=recorder_key
             )
             # Save recording to session state for preview
             if recorded_audio:
@@ -904,6 +976,8 @@ elif st.session_state.step == 4:
         with col_a:
             if st.button("🔄 録り直す", key="rerecord_btn", use_container_width=True):
                 st.session_state.recorded_audio = None
+                st.session_state.example_audio = None
+                st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
                 st.rerun()
         with col_b:
             if st.button("✅ 認識する", key="recognize_btn", type="primary", use_container_width=True):
@@ -930,6 +1004,8 @@ elif st.session_state.step == 4:
             if st.button("🔄 録り直す", key="retry_btn", use_container_width=True):
                 st.session_state.spoken_text = ""
                 st.session_state.recorded_audio = None
+                st.session_state.example_audio = None
+                st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
                 st.rerun()
         with col2:
             if st.button("発音チェックへ ▶", key="proceed_btn", type="primary", use_container_width=True):
@@ -1346,8 +1422,9 @@ elif st.session_state.step == 9:
             for key in ["native_text", "target_text", "corrected_text",
                        "writing_feedback", "spoken_text", "speaking_feedback",
                        "sister_responses", "quiz", "quiz_answer", "audio_data",
-                       "_feedback_recorded"]:
+                       "_feedback_recorded", "recorded_audio", "example_audio"]:
                 st.session_state[key] = "" if isinstance(st.session_state.get(key), str) else None
+            st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
             st.session_state.step = 1
             st.rerun()
 
@@ -1372,9 +1449,12 @@ elif st.session_state.step == 9:
             st.session_state.quiz_answer = None
             st.session_state.audio_data = None
             st.session_state._feedback_recorded = None
+            st.session_state.recorded_audio = None
+            st.session_state.example_audio = None
+            st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
             st.session_state.step = 1
             st.rerun()
 
 # Footer
 st.divider()
-st.caption("Sisters-Multilingual-Coach v0.2.0 | 🎯 Goal: 英会話ができるようになる！")
+st.caption(f"Sisters-Multilingual-Coach v0.2.0 | 🎯 Goal: {get_goal_text()}")

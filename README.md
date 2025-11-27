@@ -4,7 +4,7 @@ AI-powered language learning through natural conversation with unique character 
 
 ## Demo
 
-**Live Demo**: http://162.43.4.11:8501
+**Live Demo**: https://sisters-coach.ngrok.dev
 
 ## Concept
 
