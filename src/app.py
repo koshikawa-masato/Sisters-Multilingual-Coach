@@ -20,14 +20,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize providers (lazy loading)
+# Initialize providers (cached for performance)
 @st.cache_resource
 def get_kimi():
     from llm import KimiLLM
     return KimiLLM()
 
+@st.cache_resource
 def get_tts():
-    # No cache - ensure fresh instance with updated code
     from tts import ElevenLabsTTS
     return ElevenLabsTTS()
 
@@ -941,16 +941,18 @@ elif st.session_state.step == 9:
         quiz_correct = correct and st.session_state.quiz_answer == correct.get("text")
     quiz_score = 100 if quiz_correct else 0
 
-    # Store performance for level tracking
-    session_performance = {
-        "writing_accuracy": writing_score,
-        "speaking_accuracy": speaking_score,
-        "quiz_correct_rate": quiz_score,
-        "current_level": st.session_state.cefr_level or "A2",
-        "sessions_completed": st.session_state.sessions_completed + 1
-    }
-    st.session_state.performance_history.append(session_performance)
-    st.session_state.sessions_completed += 1
+    # Store performance for level tracking (only once per session)
+    if not st.session_state.get("_feedback_recorded"):
+        session_performance = {
+            "writing_accuracy": writing_score,
+            "speaking_accuracy": speaking_score,
+            "quiz_correct_rate": quiz_score,
+            "current_level": st.session_state.cefr_level or "A2",
+            "sessions_completed": st.session_state.sessions_completed + 1
+        }
+        st.session_state.performance_history.append(session_performance)
+        st.session_state.sessions_completed += 1
+        st.session_state._feedback_recorded = True
 
     st.subheader("📊 Today's Session:")
 
@@ -1049,7 +1051,8 @@ elif st.session_state.step == 9:
             # Reset for new conversation
             for key in ["japanese_text", "english_text", "corrected_text",
                        "writing_feedback", "spoken_text", "speaking_feedback",
-                       "sister_responses", "quiz", "quiz_answer", "audio_data"]:
+                       "sister_responses", "quiz", "quiz_answer", "audio_data",
+                       "_feedback_recorded"]:
                 st.session_state[key] = "" if isinstance(st.session_state.get(key), str) else None
             st.session_state.step = 1
             st.rerun()
@@ -1074,6 +1077,7 @@ elif st.session_state.step == 9:
             st.session_state.quiz = None
             st.session_state.quiz_answer = None
             st.session_state.audio_data = None
+            st.session_state._feedback_recorded = None
             st.session_state.step = 1
             st.rerun()
 
