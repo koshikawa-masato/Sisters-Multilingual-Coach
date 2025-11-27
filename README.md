@@ -8,7 +8,7 @@ Unlike traditional language learning apps that focus on drills and exercises, Si
 
 - **Botan** - Sociable, trendy, great for casual conversation practice
 - **Kasho** - Professional, logical, perfect for business language
-- **Yuri** - Creative, thoughtful, ideal for literature and culture topics
+- **Yuri** - Analytical, curious, ideal for technology and programming topics
 
 ## Supported Languages
 

@@ -1,10 +1,15 @@
 """
 ElevenLabs TTS Provider for Sisters-Multilingual-Coach
+Updated for ElevenLabs SDK v1.x
 """
 
 import os
 from typing import Optional
-from elevenlabs import ElevenLabs, Voice, VoiceSettings
+from dotenv import load_dotenv
+from elevenlabs import ElevenLabs
+
+# Ensure .env is loaded
+load_dotenv()
 
 
 class ElevenLabsTTS:
@@ -17,14 +22,20 @@ class ElevenLabsTTS:
 
         self.client = ElevenLabs(api_key=self.api_key)
 
-        # Voice IDs for each sister (can be customized)
+        # Voice IDs for each character + user example (can be customized)
         self.voice_ids = {
-            "Botan": os.getenv("ELEVENLABS_VOICE_ID_BOTAN", "21m00Tcm4TlvDq8ikWAM"),  # Rachel
-            "Kasho": os.getenv("ELEVENLABS_VOICE_ID_KASHO", "AZnzlk1XvdvUeBnXmlld"),  # Domi
-            "Yuri": os.getenv("ELEVENLABS_VOICE_ID_YURI", "EXAVITQu4vr4xnSDxMaL"),   # Bella
+            "Botan": os.getenv("ELEVENLABS_VOICE_ID_BOTAN", "21m00Tcm4TlvDq8ikWAM"),
+            "Kasho": os.getenv("ELEVENLABS_VOICE_ID_KASHO", "AZnzlk1XvdvUeBnXmlld"),
+            "Yuri": os.getenv("ELEVENLABS_VOICE_ID_YURI", "EXAVITQu4vr4xnSDxMaL"),
+            "Ojisan": os.getenv("ELEVENLABS_VOICE_ID_USER", "scOwDtmlUjD3prqpp97I"),  # Sam (male) for Ojisan
+            "User": os.getenv("ELEVENLABS_VOICE_ID_USER", "scOwDtmlUjD3prqpp97I"),  # Sam (male) for example
         }
 
         self.model = os.getenv("ELEVENLABS_MODEL", "eleven_multilingual_v2")
+
+        # Debug: Print all voice IDs on init
+        print(f"[TTS INIT] Voice IDs loaded: {self.voice_ids}")
+        print(f"[TTS INIT] Model: {self.model}")
 
     def generate_speech(
         self,
@@ -44,24 +55,23 @@ class ElevenLabsTTS:
             Audio data as bytes
         """
         voice_id = self.voice_ids.get(sister, self.voice_ids["Botan"])
+        print(f"[TTS] Sister: {sister}, Voice ID: {voice_id}")  # Debug
 
-        # Generate audio
-        audio = self.client.generate(
+        # Generate audio using new SDK API
+        audio_generator = self.client.text_to_speech.convert(
+            voice_id=voice_id,
             text=text,
-            voice=Voice(
-                voice_id=voice_id,
-                settings=VoiceSettings(
-                    stability=0.5,
-                    similarity_boost=0.75,
-                    style=0.5,
-                    use_speaker_boost=True
-                )
-            ),
-            model=self.model
+            model_id=self.model,
+            voice_settings={
+                "stability": 0.5,
+                "similarity_boost": 0.75,
+                "style": 0.5,
+                "use_speaker_boost": True
+            }
         )
 
         # Convert generator to bytes
-        audio_bytes = b"".join(audio)
+        audio_bytes = b"".join(audio_generator)
 
         # Save to file if path provided
         if output_path:
