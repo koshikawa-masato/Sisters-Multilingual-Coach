@@ -8,7 +8,6 @@ import os
 import json
 import base64
 from dotenv import load_dotenv
-from audio_recorder_streamlit import audio_recorder
 
 # Load environment variables
 load_dotenv()
@@ -601,7 +600,8 @@ elif st.session_state.step == 4:
     st.markdown("**マイクボタンを押して録音してください：**")
     st.caption("🔴 赤いボタンを押すと録音開始、もう一度押すと停止")
 
-    # Audio recorder
+    # Audio recorder (lazy import for performance)
+    from audio_recorder_streamlit import audio_recorder
     audio_bytes = audio_recorder(
         text="",
         recording_color="#e74c3c",
