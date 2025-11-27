@@ -156,6 +156,11 @@ st.caption(f"🎯 Goal: 英会話ができるようになる！ | Partner: {SIST
 # STEP 0: Placement Test
 # ===========================================
 if st.session_state.step == 0:
+    # If already assessed, skip to step 1
+    if st.session_state.cefr_level and st.session_state.placement_test_phase == "done":
+        st.session_state.step = 1
+        st.rerun()
+
     phase = st.session_state.placement_test_phase
 
     # Intro phase
@@ -200,6 +205,7 @@ if st.session_state.step == 0:
                     "level_name_jp": "初級",
                     "description_jp": "テストをスキップしました。A2レベルで開始します。"
                 }
+                st.session_state.placement_test_phase = "done"
                 st.session_state.step = 1
                 st.rerun()
 
@@ -441,6 +447,7 @@ if st.session_state.step == 0:
         st.divider()
 
         if st.button("🚀 学習を開始する", type="primary", use_container_width=True):
+            st.session_state.placement_test_phase = "done"
             st.session_state.step = 1
             st.rerun()
 
