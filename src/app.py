@@ -192,6 +192,7 @@ UI_TEXT = {
         "score_detail": "📊 Score Details",
         "start_learning": "🚀 Start Learning",
         "skip_desc": "Test skipped. Starting at A2 level.",
+        "progress_steps": ["①Native", "②Writing", "③Correction", "④Speaking", "⑤Pronunciation", "⑥Listening", "⑦Reading", "⑧Quiz", "⑨Feedback"],
     },
     "日本語": {
         "what_to_say": "何を言いたいですか？",
@@ -235,6 +236,7 @@ UI_TEXT = {
         "score_detail": "📊 スコア詳細",
         "start_learning": "🚀 学習を開始する",
         "skip_desc": "テストをスキップしました。A2レベルで開始します。",
+        "progress_steps": ["①日本語", "②Writing", "③添削", "④Speaking", "⑤発音添削", "⑥Listening", "⑦Reading", "⑧Quiz", "⑨Feedback"],
     },
     "中文": {
         "what_to_say": "你想说什么？",
@@ -278,6 +280,7 @@ UI_TEXT = {
         "score_detail": "📊 分数详情",
         "start_learning": "🚀 开始学习",
         "skip_desc": "已跳过测试。从A2级别开始。",
+        "progress_steps": ["①母语", "②写作", "③修改", "④口语", "⑤发音", "⑥听力", "⑦阅读", "⑧测验", "⑨反馈"],
     },
     "한국어": {
         "what_to_say": "무엇을 말하고 싶으세요?",
@@ -321,6 +324,7 @@ UI_TEXT = {
         "score_detail": "📊 점수 상세",
         "start_learning": "🚀 학습 시작",
         "skip_desc": "테스트를 건너뛰었습니다. A2 레벨로 시작합니다.",
+        "progress_steps": ["①모국어", "②작문", "③수정", "④말하기", "⑤발음", "⑥듣기", "⑦읽기", "⑧퀴즈", "⑨피드백"],
     },
     "Español": {
         "what_to_say": "¿Qué quieres decir?",
@@ -364,16 +368,17 @@ UI_TEXT = {
         "score_detail": "📊 Detalle de puntuación",
         "start_learning": "🚀 Comenzar a aprender",
         "skip_desc": "Prueba omitida. Comenzando en nivel A2.",
+        "progress_steps": ["①Nativo", "②Escritura", "③Corrección", "④Hablar", "⑤Pronunciación", "⑥Escuchar", "⑦Lectura", "⑧Quiz", "⑨Feedback"],
     },
 }
 
-def get_ui_text(key: str) -> str:
+def get_ui_text(key: str):
     """Get UI text in user's native language"""
     native = st.session_state.get("native_language", "日本語")
     texts = UI_TEXT.get(native, UI_TEXT["English"])
     text = texts.get(key, key)
-    # Replace {target} placeholder if present
-    if "{target}" in text:
+    # Replace {target} placeholder if present (only for strings)
+    if isinstance(text, str) and "{target}" in text:
         text = text.format(target=st.session_state.get("target_language", "English"))
     return text
 
@@ -471,7 +476,7 @@ with st.sidebar:
     st.divider()
 
     st.subheader("Progress")
-    steps = ["①日本語", "②Writing", "③添削", "④Speaking", "⑤発音添削", "⑥Listening", "⑦Reading", "⑧Quiz", "⑨Feedback"]
+    steps = get_ui_text("progress_steps")
     current = st.session_state.step
     for i, step in enumerate(steps, 1):
         if i < current:
