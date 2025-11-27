@@ -8,6 +8,7 @@ import os
 import json
 import base64
 from dotenv import load_dotenv
+from audio_recorder_streamlit import audio_recorder
 
 # Load environment variables
 load_dotenv()
@@ -564,7 +565,6 @@ elif st.session_state.step == 3:
 # ===========================================
 elif st.session_state.step == 4:
     st.header("④ 読み上げましょう【Speaking】")
-    st.caption("💡 Ctrl+Enter で発音チェックへ進めます")
 
     st.success(f"📖 Read this aloud: **{st.session_state.corrected_text}**")
 
@@ -586,25 +586,67 @@ elif st.session_state.step == 4:
     # Record user speech
     st.subheader("🎤 あなたの番です")
 
-    # Back button outside form
+    # Back button
     if st.button("◀ 戻る"):
         st.session_state.step = 3
         st.rerun()
 
-    # Text input with form for Ctrl+Enter
-    with st.form("step4_form"):
-        st.caption("読み上げた英語を入力してください:")
-        spoken_demo = st.text_input(
-            "What you said:",
-            value=st.session_state.corrected_text,  # Pre-fill with target
+    st.markdown("**マイクボタンを押して録音してください：**")
+    st.caption("🔴 赤いボタンを押すと録音開始、もう一度押すと停止")
+
+    # Audio recorder
+    audio_bytes = audio_recorder(
+        text="",
+        recording_color="#e74c3c",
+        neutral_color="#3498db",
+        icon_name="microphone",
+        icon_size="3x",
+        sample_rate=16000
+    )
+
+    # Show transcription result
+    if audio_bytes:
+        st.audio(audio_bytes, format="audio/wav")
+
+        with st.spinner("音声を認識中..."):
+            try:
+                stt = get_stt()
+                result = stt.transcribe_bytes(audio_bytes, filename="recording.wav", language="en")
+                transcribed_text = result.get("text", "")
+
+                if transcribed_text:
+                    st.session_state.spoken_text = transcribed_text
+                    st.success(f"**認識結果:** {transcribed_text}")
+
+                    # Auto-proceed or manual button
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("🔄 録り直す", use_container_width=True):
+                            st.session_state.spoken_text = ""
+                            st.rerun()
+                    with col2:
+                        if st.button("発音チェックへ ▶", type="primary", use_container_width=True):
+                            st.session_state.step = 5
+                            st.rerun()
+                else:
+                    st.warning("音声を認識できませんでした。もう一度お試しください。")
+            except Exception as e:
+                st.error(f"STT Error: {e}")
+                st.caption("音声認識に失敗しました。下のテキスト入力をお使いください。")
+
+    # Fallback: Manual text input
+    st.divider()
+    with st.expander("💬 テキストで入力する（音声認識がうまくいかない場合）"):
+        manual_text = st.text_input(
+            "発音した内容を入力:",
+            value=st.session_state.get("spoken_text", ""),
             placeholder="I want to go shopping tomorrow"
         )
-        submitted = st.form_submit_button("発音チェック ✓ (Ctrl+Enter)", type="primary", use_container_width=True)
-
-        if submitted and spoken_demo:
-            st.session_state.spoken_text = spoken_demo
-            st.session_state.step = 5
-            st.rerun()
+        if st.button("この内容で発音チェック", use_container_width=True):
+            if manual_text:
+                st.session_state.spoken_text = manual_text
+                st.session_state.step = 5
+                st.rerun()
 
 # ===========================================
 # STEP 5: Speaking Correction
