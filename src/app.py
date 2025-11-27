@@ -796,7 +796,7 @@ elif st.session_state.step == 1:
     target_lang = st.session_state.target_language
     native_flag = LANGUAGES[native_lang]["flag"]
 
-    st.header(f"① {native_flag} {get_ui_text('what_to_say')}")
+    st.header(f"1. {native_flag} {get_ui_text('what_to_say')}")
     st.caption("💡 Ctrl+Enter")
 
     with st.form("step1_form"):
@@ -821,7 +821,7 @@ elif st.session_state.step == 2:
     target_lang = st.session_state.target_language
     target_flag = LANGUAGES[target_lang]["flag"]
 
-    st.header(f"② {target_flag} {get_ui_text('write_in_target')}【Writing】")
+    st.header(f"2. {target_flag} {get_ui_text('write_in_target')} [Writing]")
     st.caption("💡 Ctrl+Enter")
 
     st.info(f"💬 {st.session_state.native_text}")
@@ -852,7 +852,7 @@ elif st.session_state.step == 3:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
 
-    st.header(f"③ {get_ui_text('correction')}")
+    st.header(f"3. {get_ui_text('correction')}")
 
     with st.spinner("..."):
         if st.session_state.writing_feedback is None:
@@ -924,7 +924,7 @@ elif st.session_state.step == 4:
     target_lang = st.session_state.target_language
     target_code = LANGUAGES[target_lang]["code"]
 
-    st.header(f"④ {get_ui_text('speaking_practice')}【Speaking】")
+    st.header(f"4. {get_ui_text('speaking_practice')} [Speaking]")
 
     st.success(f"📖 {get_ui_text('speaking_practice')}: **{st.session_state.corrected_text}**")
 
@@ -1039,7 +1039,7 @@ elif st.session_state.step == 5:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
 
-    st.header("⑤ Speaking Feedback")
+    st.header("5. Speaking Feedback")
 
     with st.spinner("..."):
         if st.session_state.speaking_feedback is None:
@@ -1123,7 +1123,7 @@ elif st.session_state.step == 6:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
 
-    st.header(f"⑥ Listening")
+    st.header("6. Listening")
     st.caption(f"💡 Switch characters in sidebar")
 
     # Initialize sister_responses if needed
@@ -1204,7 +1204,7 @@ elif st.session_state.step == 6:
 # STEP 7: Reading (Bilingual Display)
 # ===========================================
 elif st.session_state.step == 7:
-    st.header("⑦ 英文を確認【Reading】")
+    st.header("7. Reading")
 
     current_sister = st.session_state.current_sister
     response = st.session_state.sister_responses.get(current_sister, {})
@@ -1239,7 +1239,7 @@ elif st.session_state.step == 7:
 # STEP 8: Quiz
 # ===========================================
 elif st.session_state.step == 8:
-    st.header("⑧ 理解度チェック【Quiz】")
+    st.header("8. Quiz")
 
     with st.spinner("クイズを生成中..."):
         if st.session_state.quiz is None:
@@ -1301,7 +1301,7 @@ elif st.session_state.step == 8:
 # STEP 9: Feedback & Next Guidance
 # ===========================================
 elif st.session_state.step == 9:
-    st.header("⑨ 学習まとめ【Feedback】")
+    st.header("9. Feedback")
 
     # Calculate performance metrics
     writing = st.session_state.writing_feedback
