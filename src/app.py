@@ -38,20 +38,28 @@ def get_stt():
 # Session state initialization
 def init_session_state():
     defaults = {
-        "step": 1,
+        "step": 0,  # 0 = placement test, 1-9 = learning flow
         "japanese_text": "",
         "english_text": "",
         "corrected_text": "",
         "writing_feedback": None,
         "spoken_text": "",
         "speaking_feedback": None,
-        "sister_responses": None,  # Changed: Store all 3 sisters' responses
+        "sister_responses": None,
         "quiz": None,
         "quiz_answer": None,
         "current_sister": "Botan",
         "target_language": "English",
         "conversation_history": [],
-        "audio_data": None
+        "audio_data": None,
+        # Level assessment
+        "cefr_level": None,  # A1, A2, B1, B2, C1, C2
+        "level_info": None,  # Full level info dict
+        "placement_test_phase": "intro",  # intro, grammar, vocabulary, listening, result
+        "placement_answers": {},  # Store test answers
+        "placement_questions": {},  # Store generated questions
+        "sessions_completed": 0,
+        "performance_history": [],  # Track performance for level adjustment
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -67,9 +75,38 @@ SISTERS = {
     "Ojisan": {"emoji": "👨", "desc": "Typical American uncle, friendly"}
 }
 
+# CEFR Level colors
+CEFR_COLORS = {
+    "A1": "#4CAF50",  # Green - Beginner
+    "A2": "#8BC34A",  # Light Green
+    "B1": "#FFC107",  # Yellow - Intermediate
+    "B2": "#FF9800",  # Orange
+    "C1": "#F44336",  # Red - Advanced
+    "C2": "#9C27B0",  # Purple - Mastery
+}
+
 # Sidebar
 with st.sidebar:
     st.title("🌏 Settings")
+
+    # Show CEFR Level if assessed
+    if st.session_state.cefr_level:
+        level = st.session_state.cefr_level
+        level_info = st.session_state.level_info or {}
+        color = CEFR_COLORS.get(level, "#666")
+        st.markdown(f"""
+        <div style="background-color: {color}; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 10px;">
+            <span style="font-size: 24px; font-weight: bold; color: white;">CEFR {level}</span><br>
+            <span style="color: white; font-size: 12px;">{level_info.get('level_name_jp', '')}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("📊 レベル再測定", use_container_width=True):
+            st.session_state.step = 0
+            st.session_state.placement_test_phase = "intro"
+            st.session_state.placement_answers = {}
+            st.session_state.placement_questions = {}
+            st.rerun()
+        st.divider()
 
     st.subheader("Sister")
     for name, info in SISTERS.items():
@@ -79,7 +116,7 @@ with st.sidebar:
             type="primary" if st.session_state.current_sister == name else "secondary"
         ):
             st.session_state.current_sister = name
-            st.session_state.audio_data = None  # Clear cached audio when switching sister
+            st.session_state.audio_data = None
             st.rerun()
 
     st.caption(f"Best for: {SISTERS[st.session_state.current_sister]['desc']}")
@@ -99,11 +136,15 @@ with st.sidebar:
 
     st.divider()
     if st.button("🔄 Start Over", use_container_width=True):
-        # Preserve current_sister selection
         current_sister = st.session_state.get("current_sister", "Botan")
+        cefr_level = st.session_state.get("cefr_level")
+        level_info = st.session_state.get("level_info")
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.current_sister = current_sister
+        st.session_state.cefr_level = cefr_level
+        st.session_state.level_info = level_info
+        st.session_state.step = 1 if cefr_level else 0
         st.rerun()
 
 # Main content
@@ -111,9 +152,301 @@ st.title(f"🌏 Sisters Multilingual Coach")
 st.caption(f"🎯 Goal: 英会話ができるようになる！ | Partner: {SISTERS[st.session_state.current_sister]['emoji']} {st.session_state.current_sister}")
 
 # ===========================================
+# STEP 0: Placement Test
+# ===========================================
+if st.session_state.step == 0:
+    phase = st.session_state.placement_test_phase
+
+    # Intro phase
+    if phase == "intro":
+        st.header("📊 英語レベル診断テスト")
+        st.markdown("""
+        ### あなたの英語レベルを測定します
+
+        **CEFR（ヨーロッパ言語共通参照枠）** に基づいて、あなたの英語力を判定します。
+
+        | レベル | 説明 |
+        |--------|------|
+        | **A1** | 入門 - 基本的な表現を理解できる |
+        | **A2** | 初級 - 日常的な表現を理解できる |
+        | **B1** | 中級 - 要点を理解できる |
+        | **B2** | 中上級 - 複雑な文章を理解できる |
+        | **C1** | 上級 - 高度な内容を理解できる |
+        | **C2** | 最上級 - ネイティブに近い |
+
+        ---
+
+        **テスト内容:**
+        1. 文法問題 (5問)
+        2. 語彙問題 (5問)
+        3. リスニング問題 (3問)
+
+        所要時間: 約5分
+        """)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📝 テストを開始", type="primary", use_container_width=True):
+                st.session_state.placement_test_phase = "grammar"
+                st.session_state.placement_answers = {"grammar": [], "vocabulary": [], "listening": []}
+                st.rerun()
+        with col2:
+            if st.button("⏭️ スキップ (A2で開始)", use_container_width=True):
+                st.session_state.cefr_level = "A2"
+                st.session_state.level_info = {
+                    "level": "A2",
+                    "level_name_en": "Elementary",
+                    "level_name_jp": "初級",
+                    "description_jp": "テストをスキップしました。A2レベルで開始します。"
+                }
+                st.session_state.step = 1
+                st.rerun()
+
+    # Grammar phase
+    elif phase == "grammar":
+        st.header("📝 文法テスト (1/3)")
+        st.progress(0.33)
+
+        # Generate questions if not already
+        if "grammar" not in st.session_state.placement_questions:
+            with st.spinner("問題を生成中..."):
+                kimi = get_kimi()
+                questions = kimi.generate_placement_test("grammar")
+                st.session_state.placement_questions["grammar"] = questions.get("questions", [])
+
+        questions = st.session_state.placement_questions.get("grammar", [])
+
+        if questions:
+            with st.form("grammar_form"):
+                answers = []
+                for i, q in enumerate(questions):
+                    st.markdown(f"**Q{i+1}. ({q.get('level', '?')})** {q.get('question', '')}")
+                    options = q.get("options", [])
+                    answer = st.radio(
+                        f"選択してください:",
+                        options,
+                        key=f"grammar_{i}",
+                        index=None
+                    )
+                    answers.append(answer)
+                    st.divider()
+
+                if st.form_submit_button("次へ ▶", type="primary", use_container_width=True):
+                    # Store answers with correctness
+                    grammar_results = []
+                    for i, (q, ans) in enumerate(zip(questions, answers)):
+                        correct_idx = q.get("correct", 0)
+                        options = q.get("options", [])
+                        is_correct = ans == options[correct_idx] if ans and correct_idx < len(options) else False
+                        grammar_results.append({
+                            "level": q.get("level", "A1"),
+                            "correct": is_correct
+                        })
+                    st.session_state.placement_answers["grammar"] = grammar_results
+                    st.session_state.placement_test_phase = "vocabulary"
+                    st.rerun()
+        else:
+            st.error("問題の生成に失敗しました")
+            if st.button("再試行"):
+                st.session_state.placement_questions.pop("grammar", None)
+                st.rerun()
+
+    # Vocabulary phase
+    elif phase == "vocabulary":
+        st.header("📚 語彙テスト (2/3)")
+        st.progress(0.66)
+
+        if "vocabulary" not in st.session_state.placement_questions:
+            with st.spinner("問題を生成中..."):
+                kimi = get_kimi()
+                questions = kimi.generate_placement_test("vocabulary")
+                st.session_state.placement_questions["vocabulary"] = questions.get("questions", [])
+
+        questions = st.session_state.placement_questions.get("vocabulary", [])
+
+        if questions:
+            with st.form("vocabulary_form"):
+                answers = []
+                for i, q in enumerate(questions):
+                    st.markdown(f"**Q{i+1}. ({q.get('level', '?')})** {q.get('question', '')}")
+                    options = q.get("options", [])
+                    answer = st.radio(
+                        f"選択してください:",
+                        options,
+                        key=f"vocab_{i}",
+                        index=None
+                    )
+                    answers.append(answer)
+                    st.divider()
+
+                if st.form_submit_button("次へ ▶", type="primary", use_container_width=True):
+                    vocab_results = []
+                    for i, (q, ans) in enumerate(zip(questions, answers)):
+                        correct_idx = q.get("correct", 0)
+                        options = q.get("options", [])
+                        is_correct = ans == options[correct_idx] if ans and correct_idx < len(options) else False
+                        vocab_results.append({
+                            "level": q.get("level", "A1"),
+                            "correct": is_correct
+                        })
+                    st.session_state.placement_answers["vocabulary"] = vocab_results
+                    st.session_state.placement_test_phase = "listening"
+                    st.rerun()
+        else:
+            st.error("問題の生成に失敗しました")
+            if st.button("再試行"):
+                st.session_state.placement_questions.pop("vocabulary", None)
+                st.rerun()
+
+    # Listening phase
+    elif phase == "listening":
+        st.header("🎧 リスニングテスト (3/3)")
+        st.progress(1.0)
+
+        if "listening" not in st.session_state.placement_questions:
+            with st.spinner("問題を生成中..."):
+                kimi = get_kimi()
+                questions = kimi.generate_placement_test("listening")
+                st.session_state.placement_questions["listening"] = questions.get("questions", [])
+
+        questions = st.session_state.placement_questions.get("listening", [])
+
+        if questions:
+            with st.form("listening_form"):
+                answers = []
+                for i, q in enumerate(questions):
+                    st.markdown(f"**Q{i+1}. ({q.get('level', '?')})**")
+
+                    # Play audio
+                    audio_text = q.get("audio_text", "")
+                    if audio_text:
+                        st.info(f"🔊 音声テキスト: \"{audio_text}\"")
+                        # Generate TTS for listening
+                        if st.session_state.get(f"listening_audio_{i}") is None:
+                            try:
+                                tts = get_tts()
+                                audio_bytes = tts.generate_speech(audio_text, sister="Ojisan")
+                                st.session_state[f"listening_audio_{i}"] = audio_bytes
+                            except:
+                                pass
+
+                        if st.session_state.get(f"listening_audio_{i}"):
+                            st.audio(st.session_state[f"listening_audio_{i}"], format="audio/mp3")
+
+                    st.markdown(f"**{q.get('question', '')}**")
+                    options = q.get("options", [])
+                    answer = st.radio(
+                        f"選択してください:",
+                        options,
+                        key=f"listen_{i}",
+                        index=None
+                    )
+                    answers.append(answer)
+                    st.divider()
+
+                if st.form_submit_button("結果を見る 📊", type="primary", use_container_width=True):
+                    listen_results = []
+                    for i, (q, ans) in enumerate(zip(questions, answers)):
+                        correct_idx = q.get("correct", 0)
+                        options = q.get("options", [])
+                        is_correct = ans == options[correct_idx] if ans and correct_idx < len(options) else False
+                        listen_results.append({
+                            "level": q.get("level", "A1"),
+                            "correct": is_correct
+                        })
+                    st.session_state.placement_answers["listening"] = listen_results
+                    st.session_state.placement_test_phase = "result"
+                    st.rerun()
+        else:
+            st.error("問題の生成に失敗しました")
+            if st.button("再試行"):
+                st.session_state.placement_questions.pop("listening", None)
+                st.rerun()
+
+    # Result phase
+    elif phase == "result":
+        st.header("📊 診断結果")
+
+        # Calculate results
+        all_answers = st.session_state.placement_answers
+        results_by_level = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0}
+        total_by_level = {"A1": 0, "A2": 0, "B1": 0, "B2": 0, "C1": 0}
+
+        for category in ["grammar", "vocabulary", "listening"]:
+            for ans in all_answers.get(category, []):
+                level = ans.get("level", "A1")
+                # Normalize level (A1-A2 -> A1 or A2)
+                if "-" in level:
+                    level = level.split("-")[0]
+                if level in results_by_level:
+                    total_by_level[level] += 1
+                    if ans.get("correct"):
+                        results_by_level[level] += 1
+
+        with st.spinner("レベルを判定中..."):
+            kimi = get_kimi()
+            level_result = kimi.calculate_cefr_level({
+                "results": results_by_level,
+                "total": total_by_level,
+                "raw_answers": all_answers
+            })
+
+        # Store level
+        st.session_state.cefr_level = level_result.get("level", "A2")
+        st.session_state.level_info = level_result
+
+        # Display result
+        level = level_result.get("level", "A2")
+        color = CEFR_COLORS.get(level, "#666")
+
+        st.markdown(f"""
+        <div style="background-color: {color}; padding: 30px; border-radius: 20px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 48px; font-weight: bold; color: white;">CEFR {level}</span><br>
+            <span style="color: white; font-size: 24px;">{level_result.get('level_name_jp', '')}</span><br>
+            <span style="color: white; font-size: 14px;">{level_result.get('level_name_en', '')}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(f"**📝 {level_result.get('description_jp', '')}**")
+
+        # Show strengths and areas to improve
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("✅ 強み")
+            for strength in level_result.get("strengths_jp", []):
+                st.markdown(f"- {strength}")
+
+        with col2:
+            st.subheader("📈 改善ポイント")
+            for area in level_result.get("areas_to_improve_jp", []):
+                st.markdown(f"- {area}")
+
+        # Show score breakdown
+        st.divider()
+        st.subheader("📊 スコア詳細")
+        col1, col2, col3 = st.columns(3)
+
+        grammar_correct = sum(1 for a in all_answers.get("grammar", []) if a.get("correct"))
+        vocab_correct = sum(1 for a in all_answers.get("vocabulary", []) if a.get("correct"))
+        listen_correct = sum(1 for a in all_answers.get("listening", []) if a.get("correct"))
+
+        with col1:
+            st.metric("文法", f"{grammar_correct}/5")
+        with col2:
+            st.metric("語彙", f"{vocab_correct}/5")
+        with col3:
+            st.metric("リスニング", f"{listen_correct}/3")
+
+        st.divider()
+
+        if st.button("🚀 学習を開始する", type="primary", use_container_width=True):
+            st.session_state.step = 1
+            st.rerun()
+
+# ===========================================
 # STEP 1: Japanese Input
 # ===========================================
-if st.session_state.step == 1:
+elif st.session_state.step == 1:
     st.header("① 日本語で伝えたい内容を書く")
     st.caption("💡 Ctrl+Enter で次へ進めます")
 
@@ -553,10 +886,39 @@ elif st.session_state.step == 8:
 elif st.session_state.step == 9:
     st.header("⑨ 学習まとめ【Feedback】")
 
+    # Calculate performance metrics
+    writing = st.session_state.writing_feedback
+    speaking = st.session_state.speaking_feedback
+    quiz = st.session_state.quiz
+
+    writing_score = writing.get("rating", 3) * 20 if writing else 0
+    speaking_score = speaking.get("accuracy_percent", 0) if speaking else 0
+    quiz_correct = False
+    if st.session_state.quiz_answer and quiz:
+        correct = next((opt for opt in quiz.get("options", []) if opt.get("correct")), None)
+        quiz_correct = correct and st.session_state.quiz_answer == correct.get("text")
+    quiz_score = 100 if quiz_correct else 0
+
+    # Store performance for level tracking
+    session_performance = {
+        "writing_accuracy": writing_score,
+        "speaking_accuracy": speaking_score,
+        "quiz_correct_rate": quiz_score,
+        "current_level": st.session_state.cefr_level or "A2",
+        "sessions_completed": st.session_state.sessions_completed + 1
+    }
+    st.session_state.performance_history.append(session_performance)
+    st.session_state.sessions_completed += 1
+
     st.subheader("📊 Today's Session:")
 
+    # Show current level
+    if st.session_state.cefr_level:
+        level = st.session_state.cefr_level
+        color = CEFR_COLORS.get(level, "#666")
+        st.markdown(f"**現在のレベル:** <span style='background-color: {color}; color: white; padding: 2px 8px; border-radius: 4px;'>CEFR {level}</span>", unsafe_allow_html=True)
+
     # Writing feedback
-    writing = st.session_state.writing_feedback
     if writing:
         st.markdown("**Writing:**")
         if writing.get("is_correct"):
@@ -565,7 +927,6 @@ elif st.session_state.step == 9:
             st.warning(f"📝 {len(writing.get('corrections', []))} corrections made")
 
     # Speaking feedback
-    speaking = st.session_state.speaking_feedback
     if speaking:
         st.markdown("**Speaking:**")
         accuracy = speaking.get("accuracy_percent", 100)
@@ -578,13 +939,52 @@ elif st.session_state.step == 9:
 
     # Quiz result
     st.markdown("**Comprehension:**")
-    if st.session_state.quiz_answer:
-        quiz = st.session_state.quiz
-        correct = next((opt for opt in quiz.get("options", []) if opt.get("correct")), None)
-        if correct and st.session_state.quiz_answer == correct.get("text"):
-            st.success("✅ Quiz passed!")
-        else:
-            st.warning("📝 Review the listening section")
+    if quiz_correct:
+        st.success("✅ Quiz passed!")
+    else:
+        st.warning("📝 Review the listening section")
+
+    # Level adjustment check (every 3 sessions)
+    if st.session_state.sessions_completed >= 3 and st.session_state.sessions_completed % 3 == 0:
+        st.divider()
+        st.subheader("📈 レベル調整チェック")
+
+        # Calculate average performance
+        recent_sessions = st.session_state.performance_history[-3:]
+        avg_writing = sum(s.get("writing_accuracy", 0) for s in recent_sessions) / 3
+        avg_speaking = sum(s.get("speaking_accuracy", 0) for s in recent_sessions) / 3
+        avg_quiz = sum(s.get("quiz_correct_rate", 0) for s in recent_sessions) / 3
+
+        with st.spinner("パフォーマンスを分析中..."):
+            try:
+                kimi = get_kimi()
+                analysis = kimi.analyze_performance({
+                    "writing_accuracy": avg_writing,
+                    "speaking_accuracy": avg_speaking,
+                    "quiz_correct_rate": avg_quiz,
+                    "current_level": st.session_state.cefr_level,
+                    "sessions_completed": st.session_state.sessions_completed
+                })
+
+                if analysis.get("should_adjust") and analysis.get("confidence", 0) > 0.7:
+                    new_level = analysis.get("recommended_level")
+                    st.info(f"📊 **レベル調整の提案**: {st.session_state.cefr_level} → {new_level}")
+                    st.caption(analysis.get("adjustment_reason_jp", ""))
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button(f"✅ {new_level}に変更", use_container_width=True):
+                            st.session_state.cefr_level = new_level
+                            st.session_state.level_info["level"] = new_level
+                            st.success(f"レベルを{new_level}に更新しました！")
+                            st.rerun()
+                    with col2:
+                        if st.button("⏭️ 現在のレベルを維持", use_container_width=True):
+                            st.info("現在のレベルを維持します")
+                else:
+                    st.success("✅ 現在のレベルが適切です")
+            except Exception as e:
+                st.caption(f"レベル分析をスキップしました")
 
     st.divider()
 

@@ -179,6 +179,185 @@ Respond in this JSON format:
                 "words_to_highlight": ["interesting", "more"]
             }
 
+    def generate_placement_test(self, test_type: str = "grammar") -> dict:
+        """
+        Generate CEFR placement test questions.
+
+        Args:
+            test_type: "grammar", "vocabulary", or "listening"
+        """
+        prompts = {
+            "grammar": """Generate 5 English grammar questions for a placement test.
+Include questions ranging from A1 (beginner) to C1 (advanced) level.
+
+Create questions in this format:
+- 2 easy questions (A1-A2): basic verb tenses, simple sentences
+- 2 medium questions (B1-B2): conditionals, passive voice, relative clauses
+- 1 hard question (C1): complex structures, nuanced grammar
+
+Respond in JSON:
+{
+    "questions": [
+        {
+            "level": "A1",
+            "question": "Choose the correct word: She ___ to school every day.",
+            "options": ["go", "goes", "going", "gone"],
+            "correct": 1,
+            "explanation_jp": "三人称単数なのでgoesが正解"
+        }
+    ]
+}""",
+            "vocabulary": """Generate 5 English vocabulary questions for a placement test.
+Include questions ranging from A1 (beginner) to C1 (advanced) level.
+
+Create questions testing word meaning and usage:
+- 2 easy questions (A1-A2): common everyday words
+- 2 medium questions (B1-B2): academic/business vocabulary
+- 1 hard question (C1): nuanced words, idioms
+
+Respond in JSON:
+{
+    "questions": [
+        {
+            "level": "A1",
+            "question": "What does 'happy' mean?",
+            "options": ["sad", "angry", "pleased", "tired"],
+            "correct": 2,
+            "explanation_jp": "happyは「嬉しい、幸せ」という意味"
+        }
+    ]
+}""",
+            "listening": """Generate 3 listening comprehension scenarios for a placement test.
+Create short dialogues/sentences that would be read aloud.
+
+- 1 easy (A1-A2): simple greeting or question
+- 1 medium (B1-B2): everyday conversation
+- 1 hard (C1): complex statement with nuance
+
+Respond in JSON:
+{
+    "questions": [
+        {
+            "level": "A1",
+            "audio_text": "Hello, my name is John. Nice to meet you.",
+            "question": "What is the speaker's name?",
+            "options": ["Tom", "John", "Jack", "James"],
+            "correct": 1,
+            "explanation_jp": "話者は自分の名前をJohnと言っています"
+        }
+    ]
+}"""
+        }
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are an English test generator. Always respond in valid JSON."},
+                {"role": "user", "content": prompts.get(test_type, prompts["grammar"])}
+            ],
+            temperature=0.7
+        )
+
+        import json
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {"questions": []}
+
+    def calculate_cefr_level(self, results: dict) -> dict:
+        """
+        Calculate CEFR level based on test results.
+
+        Args:
+            results: dict with correct answers per level
+                {"A1": 2, "A2": 1, "B1": 1, "B2": 0, "C1": 0}
+        """
+        prompt = f"""Based on these English placement test results, determine the CEFR level.
+
+Test Results (correct answers per level):
+{results}
+
+Total questions per category:
+- Grammar: 5 questions (2 A1-A2, 2 B1-B2, 1 C1)
+- Vocabulary: 5 questions (2 A1-A2, 2 B1-B2, 1 C1)
+- Listening: 3 questions (1 A1-A2, 1 B1-B2, 1 C1)
+
+Determine the appropriate CEFR level (A1, A2, B1, B2, C1, or C2).
+
+Respond in JSON:
+{{
+    "level": "B1",
+    "level_name_en": "Intermediate",
+    "level_name_jp": "中級",
+    "description_en": "Can understand main points of clear standard input on familiar matters.",
+    "description_jp": "日常的な話題について、要点を理解できるレベルです。",
+    "strengths_jp": ["基本的な文法は理解している", "日常語彙は十分"],
+    "areas_to_improve_jp": ["複雑な文構造", "ビジネス語彙"],
+    "confidence": 0.85
+}}"""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are an English level assessment expert. Always respond in valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
+
+        import json
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {
+                "level": "A2",
+                "level_name_en": "Elementary",
+                "level_name_jp": "初級",
+                "description_jp": "レベル判定ができませんでした。A2として開始します。",
+                "confidence": 0.5
+            }
+
+    def analyze_performance(self, session_data: dict) -> dict:
+        """
+        Analyze learning session performance for continuous level adjustment.
+
+        Args:
+            session_data: Performance metrics from learning sessions
+        """
+        prompt = f"""Analyze this English learning session performance:
+
+Performance Data:
+- Writing accuracy: {session_data.get('writing_accuracy', 0)}%
+- Speaking accuracy: {session_data.get('speaking_accuracy', 0)}%
+- Quiz correct rate: {session_data.get('quiz_correct_rate', 0)}%
+- Current CEFR level: {session_data.get('current_level', 'A2')}
+- Sessions completed: {session_data.get('sessions_completed', 0)}
+
+Based on this data, recommend if the level should be adjusted.
+
+Respond in JSON:
+{{
+    "should_adjust": true/false,
+    "recommended_level": "B1",
+    "adjustment_reason_jp": "理由の説明",
+    "confidence": 0.8
+}}"""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are an English learning analyst. Always respond in valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
+
+        import json
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {"should_adjust": False, "confidence": 0.5}
+
     def generate_quiz(self, sister_response: str) -> dict:
         """
         Generate a comprehension quiz based on sister's response.
