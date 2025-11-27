@@ -22,39 +22,45 @@ class KimiLLM:
         )
         self.model = os.getenv("KIMI_MODEL", "moonshot-v1-8k")
 
-    def correct_writing(self, japanese_text: str, english_text: str) -> dict:
+    def correct_writing(self, native_text: str, target_text: str, native_lang: str = "日本語", target_lang: str = "English") -> dict:
         """
-        Correct user's English writing based on Japanese intent.
+        Correct user's writing in target language based on native language intent.
+
+        Args:
+            native_text: What the user wants to say in their native language
+            target_text: User's attempt in the target language
+            native_lang: User's native language name
+            target_lang: Target language being learned
 
         Returns:
             dict with corrected text and explanation
         """
-        prompt = f"""You are an English writing tutor for Japanese speakers.
+        prompt = f"""You are a {target_lang} writing tutor for {native_lang} speakers.
 
-The student wants to say: "{japanese_text}"
-They wrote: "{english_text}"
+The student wants to say (in {native_lang}): "{native_text}"
+They wrote (in {target_lang}): "{target_text}"
 
 Please:
-1. Correct any grammar, spelling, or word choice errors
-2. Explain each correction in Japanese (briefly)
+1. Correct any grammar, spelling, or word choice errors in their {target_lang}
+2. Explain each correction in {native_lang} (briefly)
 3. Rate the attempt (1-5 stars)
 
 Respond in this JSON format:
 {{
     "original": "student's original text",
-    "corrected": "corrected English text",
+    "corrected": "corrected {target_lang} text",
     "is_correct": true/false,
     "corrections": [
-        {{"error": "what was wrong", "fix": "how to fix", "explanation_jp": "日本語での説明"}}
+        {{"error": "what was wrong", "fix": "how to fix", "explanation": "explanation in {native_lang}"}}
     ],
     "rating": 4,
-    "encouragement_jp": "励ましのメッセージ"
+    "encouragement": "encouraging message in {native_lang}"
 }}"""
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a helpful English tutor. Always respond in valid JSON."},
+                {"role": "system", "content": f"You are a helpful {target_lang} tutor. Always respond in valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3
@@ -66,30 +72,36 @@ Respond in this JSON format:
         except json.JSONDecodeError:
             # Fallback if JSON parsing fails
             return {
-                "original": english_text,
-                "corrected": english_text,
+                "original": target_text,
+                "corrected": target_text,
                 "is_correct": True,
                 "corrections": [],
                 "rating": 3,
-                "encouragement_jp": "頑張りましょう！"
+                "encouragement": "Keep going!"
             }
 
-    def correct_speaking(self, target_text: str, spoken_text: str) -> dict:
+    def correct_speaking(self, target_text: str, spoken_text: str, native_lang: str = "日本語", target_lang: str = "English") -> dict:
         """
         Compare what user should have said vs what they actually said.
+
+        Args:
+            target_text: Target sentence to speak
+            spoken_text: What was recognized from speech
+            native_lang: User's native language for feedback
+            target_lang: Language being practiced
 
         Returns:
             dict with comparison and pronunciation tips
         """
-        prompt = f"""You are a pronunciation coach for Japanese speakers learning English.
+        prompt = f"""You are a pronunciation coach for {native_lang} speakers learning {target_lang}.
 
 Target sentence: "{target_text}"
 What the student said (from speech recognition): "{spoken_text}"
 
 Please:
 1. Compare word by word
-2. Identify pronunciation issues common to Japanese speakers
-3. Give specific tips in Japanese
+2. Identify pronunciation issues common to {native_lang} speakers
+3. Give specific tips in {native_lang}
 
 Respond in this JSON format:
 {{
@@ -97,16 +109,16 @@ Respond in this JSON format:
     "spoken": "what was recognized",
     "accuracy_percent": 85,
     "word_comparison": [
-        {{"target": "want", "spoken": "wan", "correct": false, "tip_jp": "最後の t をはっきり発音"}}
+        {{"target": "word", "spoken": "what was said", "correct": false, "tip": "tip in {native_lang}"}}
     ],
-    "overall_feedback_jp": "全体的なフィードバック",
-    "focus_point_jp": "次回気をつけるポイント"
+    "overall_feedback": "overall feedback in {native_lang}",
+    "focus_point": "focus point in {native_lang}"
 }}"""
 
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a helpful pronunciation coach. Always respond in valid JSON."},
+                {"role": "system", "content": f"You are a helpful {target_lang} pronunciation coach. Always respond in valid JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3
@@ -121,8 +133,8 @@ Respond in this JSON format:
                 "spoken": spoken_text,
                 "accuracy_percent": 100,
                 "word_comparison": [],
-                "overall_feedback_jp": "認識できませんでした",
-                "focus_point_jp": "もう一度試してみてください"
+                "overall_feedback": "Could not analyze",
+                "focus_point": "Please try again"
             }
 
     def sister_response(
@@ -130,16 +142,17 @@ Respond in this JSON format:
         sister_name: str,
         user_message: str,
         conversation_history: list = None,
-        target_language: str = "English"
+        target_language: str = "English",
+        native_language: str = "日本語"
     ) -> dict:
         """
-        Generate sister's response in target language with Japanese translation.
+        Generate sister's response in target language with native language translation.
         """
         sister_personalities = {
             "Botan": "cheerful, trendy, uses casual language, loves entertainment and social topics",
             "Kasho": "professional, logical, uses formal language, expert in business and music",
             "Yuri": "analytical, curious, interested in technology, programming, and science",
-            "Ojisan": "friendly American uncle in his 50s, uses simple and clear English, loves sports (especially baseball and football), BBQ, cars, and dad jokes. Speaks in a warm, encouraging way like a supportive neighbor"
+            "Ojisan": "friendly American uncle in his 50s, uses simple and clear language, loves sports (especially baseball and football), BBQ, cars, and dad jokes. Speaks in a warm, encouraging way like a supportive neighbor"
         }
 
         personality = sister_personalities.get(sister_name, sister_personalities["Botan"])
@@ -147,16 +160,16 @@ Respond in this JSON format:
         prompt = f"""You are {sister_name}, a friendly language learning partner.
 Personality: {personality}
 
-The student said: "{user_message}"
+The student said (in {target_language}): "{user_message}"
 
 Respond naturally in {target_language} as {sister_name} would.
 Keep your response conversational and encouraging (2-3 sentences).
-Also provide the Japanese translation.
+Also provide translation in {native_language}.
 
 Respond in this JSON format:
 {{
-    "response_en": "Your English response",
-    "response_jp": "日本語訳",
+    "response_target": "Your response in {target_language}",
+    "response_native": "Translation in {native_language}",
     "words_to_highlight": ["key", "vocabulary", "words"]
 }}"""
 
@@ -171,20 +184,27 @@ Respond in this JSON format:
 
         import json
         try:
-            return json.loads(response.choices[0].message.content)
+            result = json.loads(response.choices[0].message.content)
+            # Normalize keys for compatibility
+            return {
+                "response_en": result.get("response_target", result.get("response_en", "")),
+                "response_jp": result.get("response_native", result.get("response_jp", "")),
+                "words_to_highlight": result.get("words_to_highlight", [])
+            }
         except json.JSONDecodeError:
             return {
                 "response_en": "That's interesting! Tell me more.",
-                "response_jp": "面白いですね！もっと教えてください。",
+                "response_jp": "Interesting!",
                 "words_to_highlight": ["interesting", "more"]
             }
 
-    def generate_placement_test(self, test_type: str = "grammar") -> dict:
+    def generate_placement_test(self, test_type: str = "grammar", target_language: str = "English") -> dict:
         """
         Generate CEFR placement test questions.
 
         Args:
             test_type: "grammar", "vocabulary", or "listening"
+            target_language: Language being tested
         """
         import random
 
@@ -212,11 +232,12 @@ Respond in this JSON format:
         scenario = random.choice(listening_scenarios)
 
         prompts = {
-            "grammar": f"""Generate 5 UNIQUE English grammar questions for a placement test.
+            "grammar": f"""Generate 5 UNIQUE {target_language} grammar questions for a placement test.
 Topic theme: {topic}
 
 Include questions ranging from A1 (beginner) to C1 (advanced) level.
 Make sure questions are DIFFERENT from typical textbook examples.
+All questions and options must be in {target_language}.
 
 Create questions in this format:
 - 2 easy questions (A1-A2): basic verb tenses, simple sentences
@@ -228,18 +249,19 @@ Respond in JSON:
     "questions": [
         {{
             "level": "A1",
-            "question": "Choose the correct word: She ___ to school every day.",
-            "options": ["go", "goes", "going", "gone"],
+            "question": "Choose the correct word: [sentence in {target_language}]",
+            "options": ["option1", "option2", "option3", "option4"],
             "correct": 1,
-            "explanation_jp": "三人称単数なのでgoesが正解"
+            "explanation": "Brief explanation"
         }}
     ]
 }}""",
-            "vocabulary": f"""Generate 5 UNIQUE English vocabulary questions for a placement test.
+            "vocabulary": f"""Generate 5 UNIQUE {target_language} vocabulary questions for a placement test.
 Theme: {theme}
 
 Include questions ranging from A1 (beginner) to C1 (advanced) level.
 Make sure to use DIFFERENT words each time, not common textbook examples.
+All questions and options must be in {target_language}.
 
 Create questions testing word meaning and usage:
 - 2 easy questions (A1-A2): common everyday words
@@ -251,18 +273,19 @@ Respond in JSON:
     "questions": [
         {{
             "level": "A1",
-            "question": "What does 'happy' mean?",
-            "options": ["sad", "angry", "pleased", "tired"],
+            "question": "Question in {target_language}",
+            "options": ["option1", "option2", "option3", "option4"],
             "correct": 2,
-            "explanation_jp": "happyは「嬉しい、幸せ」という意味"
+            "explanation": "Brief explanation"
         }}
     ]
 }}""",
-            "listening": f"""Generate 3 UNIQUE listening comprehension scenarios for a placement test.
+            "listening": f"""Generate 3 UNIQUE {target_language} listening comprehension scenarios for a placement test.
 Scenario setting: {scenario}
 
-Create short dialogues/sentences that would be read aloud.
+Create short dialogues/sentences in {target_language} that would be read aloud.
 Make the conversations natural and realistic.
+All audio_text, questions, and options must be in {target_language}.
 
 - 1 easy (A1-A2): simple greeting or basic question
 - 1 medium (B1-B2): everyday conversation with some detail
@@ -273,11 +296,11 @@ Respond in JSON:
     "questions": [
         {{
             "level": "A1",
-            "audio_text": "Hello, my name is John. Nice to meet you.",
-            "question": "What is the speaker's name?",
-            "options": ["Tom", "John", "Jack", "James"],
+            "audio_text": "Sentence in {target_language} to be read aloud",
+            "question": "Question about the audio in {target_language}",
+            "options": ["option1", "option2", "option3", "option4"],
             "correct": 1,
-            "explanation_jp": "話者は自分の名前をJohnと言っています"
+            "explanation": "Brief explanation"
         }}
     ]
 }}"""

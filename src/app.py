@@ -39,8 +39,8 @@ def get_stt():
 def init_session_state():
     defaults = {
         "step": 0,  # 0 = placement test, 1-9 = learning flow
-        "japanese_text": "",
-        "english_text": "",
+        "native_text": "",  # Text in native language (was japanese_text)
+        "target_text": "",  # Text in target language (was english_text)
         "corrected_text": "",
         "writing_feedback": None,
         "spoken_text": "",
@@ -49,7 +49,9 @@ def init_session_state():
         "quiz": None,
         "quiz_answer": None,
         "current_sister": "Botan",
-        "target_language": "English",
+        # Language settings
+        "native_language": "日本語",  # User's native language
+        "target_language": "English",  # Language being learned
         "conversation_history": [],
         "audio_data": None,
         # Level assessment
@@ -65,7 +67,250 @@ def init_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
+    # Restore CEFR level from URL params (survives iPhone sleep/reconnect)
+    params = st.query_params
+    if "level" in params and not st.session_state.get("cefr_level"):
+        level = params["level"]
+        if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
+            st.session_state.cefr_level = level
+            st.session_state.level_info = {"level": level}
+            st.session_state.placement_test_phase = "done"
+            st.session_state.step = 1
+
 init_session_state()
+
+# Supported languages
+LANGUAGES = {
+    "English": {"code": "en", "flag": "🇬🇧", "native_name": "English"},
+    "日本語": {"code": "ja", "flag": "🇯🇵", "native_name": "日本語"},
+    "中文": {"code": "zh", "flag": "🇨🇳", "native_name": "中文"},
+    "한국어": {"code": "ko", "flag": "🇰🇷", "native_name": "한국어"},
+    "Español": {"code": "es", "flag": "🇪🇸", "native_name": "Español"},
+}
+
+# UI text translations
+UI_TEXT = {
+    "English": {
+        "what_to_say": "What do you want to say?",
+        "write_in_target": "Write it in {target}",
+        "placeholder_native": "Example: I want to go shopping tomorrow",
+        "next": "Next ▶",
+        "back": "◀ Back",
+        "correction": "Correction",
+        "your_writing": "Your writing:",
+        "corrected": "Corrected:",
+        "speaking_practice": "Read this aloud",
+        "listen_example": "🔊 Listen to example",
+        "your_turn": "🎤 Your turn",
+        "record_instruction": "Press the microphone button to record:",
+        # Placement test
+        "placement_title": "📊 {target} Level Assessment",
+        "placement_intro": "### Assess your {target} level\n\nWe'll determine your level based on **CEFR (Common European Framework)**.",
+        "cefr_table": """
+| Level | Description |
+|-------|-------------|
+| **A1** | Beginner - Can understand basic expressions |
+| **A2** | Elementary - Can understand everyday expressions |
+| **B1** | Intermediate - Can understand main points |
+| **B2** | Upper-Intermediate - Can understand complex texts |
+| **C1** | Advanced - Can understand demanding content |
+| **C2** | Mastery - Near-native proficiency |
+""",
+        "test_content": "**Test content:**\n1. Grammar (5 questions)\n2. Vocabulary (5 questions)\n3. Listening (3 questions)\n\nTime: ~5 minutes",
+        "start_test": "📝 Start Test",
+        "skip_test": "⏭️ Skip (Start at A2)",
+        "grammar_test": "📝 Grammar Test (1/3)",
+        "vocab_test": "📚 Vocabulary Test (2/3)",
+        "listening_test": "🎧 Listening Test (3/3)",
+        "select_answer": "Select your answer:",
+        "generating": "Generating questions...",
+        "see_results": "See Results 📊",
+        "result_title": "📊 Assessment Results",
+        "strengths": "✅ Strengths",
+        "improve": "📈 Areas to Improve",
+        "score_detail": "📊 Score Details",
+        "start_learning": "🚀 Start Learning",
+        "skip_desc": "Test skipped. Starting at A2 level.",
+    },
+    "日本語": {
+        "what_to_say": "何を言いたいですか？",
+        "write_in_target": "{target}で書いてください",
+        "placeholder_native": "例: 明日、買い物に行きたいな",
+        "next": "次へ ▶",
+        "back": "◀ 戻る",
+        "correction": "添削",
+        "your_writing": "あなたの文章:",
+        "corrected": "添削後:",
+        "speaking_practice": "声に出して読んでください",
+        "listen_example": "🔊 お手本を聴く",
+        "your_turn": "🎤 あなたの番です",
+        "record_instruction": "マイクボタンを押して録音してください：",
+        # Placement test
+        "placement_title": "📊 {target}レベル診断テスト",
+        "placement_intro": "### あなたの{target}レベルを測定します\n\n**CEFR（ヨーロッパ言語共通参照枠）** に基づいて判定します。",
+        "cefr_table": """
+| レベル | 説明 |
+|--------|------|
+| **A1** | 入門 - 基本的な表現を理解できる |
+| **A2** | 初級 - 日常的な表現を理解できる |
+| **B1** | 中級 - 要点を理解できる |
+| **B2** | 中上級 - 複雑な文章を理解できる |
+| **C1** | 上級 - 高度な内容を理解できる |
+| **C2** | 最上級 - ネイティブに近い |
+""",
+        "test_content": "**テスト内容:**\n1. 文法問題 (5問)\n2. 語彙問題 (5問)\n3. リスニング問題 (3問)\n\n所要時間: 約5分",
+        "start_test": "📝 テストを開始",
+        "skip_test": "⏭️ スキップ (A2で開始)",
+        "grammar_test": "📝 文法テスト (1/3)",
+        "vocab_test": "📚 語彙テスト (2/3)",
+        "listening_test": "🎧 リスニングテスト (3/3)",
+        "select_answer": "選択してください:",
+        "generating": "問題を生成中...",
+        "see_results": "結果を見る 📊",
+        "result_title": "📊 診断結果",
+        "strengths": "✅ 強み",
+        "improve": "📈 改善ポイント",
+        "score_detail": "📊 スコア詳細",
+        "start_learning": "🚀 学習を開始する",
+        "skip_desc": "テストをスキップしました。A2レベルで開始します。",
+    },
+    "中文": {
+        "what_to_say": "你想说什么？",
+        "write_in_target": "用{target}写",
+        "placeholder_native": "例如：我明天想去购物",
+        "next": "下一步 ▶",
+        "back": "◀ 返回",
+        "correction": "修改",
+        "your_writing": "你的文章:",
+        "corrected": "修改后:",
+        "speaking_practice": "请大声朗读",
+        "listen_example": "🔊 听示范",
+        "your_turn": "🎤 轮到你了",
+        "record_instruction": "按麦克风按钮录音：",
+        # Placement test
+        "placement_title": "📊 {target}水平测试",
+        "placement_intro": "### 测试你的{target}水平\n\n我们将根据 **CEFR（欧洲语言共同参考框架）** 来评估你的水平。",
+        "cefr_table": """
+| 级别 | 描述 |
+|------|------|
+| **A1** | 入门 - 能理解基本表达 |
+| **A2** | 初级 - 能理解日常表达 |
+| **B1** | 中级 - 能理解要点 |
+| **B2** | 中高级 - 能理解复杂文章 |
+| **C1** | 高级 - 能理解高难度内容 |
+| **C2** | 精通 - 接近母语水平 |
+""",
+        "test_content": "**测试内容:**\n1. 语法 (5题)\n2. 词汇 (5题)\n3. 听力 (3题)\n\n时间: 约5分钟",
+        "start_test": "📝 开始测试",
+        "skip_test": "⏭️ 跳过 (从A2开始)",
+        "grammar_test": "📝 语法测试 (1/3)",
+        "vocab_test": "📚 词汇测试 (2/3)",
+        "listening_test": "🎧 听力测试 (3/3)",
+        "select_answer": "请选择:",
+        "generating": "生成题目中...",
+        "see_results": "查看结果 📊",
+        "result_title": "📊 测试结果",
+        "strengths": "✅ 优势",
+        "improve": "📈 需要改进",
+        "score_detail": "📊 分数详情",
+        "start_learning": "🚀 开始学习",
+        "skip_desc": "已跳过测试。从A2级别开始。",
+    },
+    "한국어": {
+        "what_to_say": "무엇을 말하고 싶으세요?",
+        "write_in_target": "{target}로 쓰세요",
+        "placeholder_native": "예: 내일 쇼핑하러 가고 싶어",
+        "next": "다음 ▶",
+        "back": "◀ 뒤로",
+        "correction": "수정",
+        "your_writing": "당신의 글:",
+        "corrected": "수정 후:",
+        "speaking_practice": "소리 내어 읽어주세요",
+        "listen_example": "🔊 예시 듣기",
+        "your_turn": "🎤 당신 차례입니다",
+        "record_instruction": "마이크 버튼을 눌러 녹음하세요:",
+        # Placement test
+        "placement_title": "📊 {target} 레벨 테스트",
+        "placement_intro": "### {target} 레벨을 측정합니다\n\n**CEFR(유럽공통언어표준)** 기준으로 평가합니다.",
+        "cefr_table": """
+| 레벨 | 설명 |
+|------|------|
+| **A1** | 입문 - 기본 표현을 이해할 수 있음 |
+| **A2** | 초급 - 일상 표현을 이해할 수 있음 |
+| **B1** | 중급 - 요점을 이해할 수 있음 |
+| **B2** | 중상급 - 복잡한 글을 이해할 수 있음 |
+| **C1** | 고급 - 어려운 내용을 이해할 수 있음 |
+| **C2** | 최상급 - 원어민 수준 |
+""",
+        "test_content": "**테스트 내용:**\n1. 문법 (5문제)\n2. 어휘 (5문제)\n3. 듣기 (3문제)\n\n소요시간: 약 5분",
+        "start_test": "📝 테스트 시작",
+        "skip_test": "⏭️ 건너뛰기 (A2로 시작)",
+        "grammar_test": "📝 문법 테스트 (1/3)",
+        "vocab_test": "📚 어휘 테스트 (2/3)",
+        "listening_test": "🎧 듣기 테스트 (3/3)",
+        "select_answer": "선택하세요:",
+        "generating": "문제 생성 중...",
+        "see_results": "결과 보기 📊",
+        "result_title": "📊 테스트 결과",
+        "strengths": "✅ 강점",
+        "improve": "📈 개선점",
+        "score_detail": "📊 점수 상세",
+        "start_learning": "🚀 학습 시작",
+        "skip_desc": "테스트를 건너뛰었습니다. A2 레벨로 시작합니다.",
+    },
+    "Español": {
+        "what_to_say": "¿Qué quieres decir?",
+        "write_in_target": "Escríbelo en {target}",
+        "placeholder_native": "Ejemplo: Quiero ir de compras mañana",
+        "next": "Siguiente ▶",
+        "back": "◀ Atrás",
+        "correction": "Corrección",
+        "your_writing": "Tu texto:",
+        "corrected": "Corregido:",
+        "speaking_practice": "Léelo en voz alta",
+        "listen_example": "🔊 Escuchar ejemplo",
+        "your_turn": "🎤 Tu turno",
+        "record_instruction": "Presiona el botón del micrófono para grabar:",
+        # Placement test
+        "placement_title": "📊 Prueba de nivel de {target}",
+        "placement_intro": "### Evaluamos tu nivel de {target}\n\nBasado en **MCER (Marco Común Europeo de Referencia)**.",
+        "cefr_table": """
+| Nivel | Descripción |
+|-------|-------------|
+| **A1** | Principiante - Comprende expresiones básicas |
+| **A2** | Elemental - Comprende expresiones cotidianas |
+| **B1** | Intermedio - Comprende los puntos principales |
+| **B2** | Intermedio alto - Comprende textos complejos |
+| **C1** | Avanzado - Comprende contenido exigente |
+| **C2** | Maestría - Nivel casi nativo |
+""",
+        "test_content": "**Contenido:**\n1. Gramática (5 preguntas)\n2. Vocabulario (5 preguntas)\n3. Comprensión auditiva (3 preguntas)\n\nTiempo: ~5 minutos",
+        "start_test": "📝 Iniciar prueba",
+        "skip_test": "⏭️ Omitir (Empezar en A2)",
+        "grammar_test": "📝 Prueba de gramática (1/3)",
+        "vocab_test": "📚 Prueba de vocabulario (2/3)",
+        "listening_test": "🎧 Prueba de comprensión auditiva (3/3)",
+        "select_answer": "Selecciona tu respuesta:",
+        "generating": "Generando preguntas...",
+        "see_results": "Ver resultados 📊",
+        "result_title": "📊 Resultados",
+        "strengths": "✅ Fortalezas",
+        "improve": "📈 Áreas a mejorar",
+        "score_detail": "📊 Detalle de puntuación",
+        "start_learning": "🚀 Comenzar a aprender",
+        "skip_desc": "Prueba omitida. Comenzando en nivel A2.",
+    },
+}
+
+def get_ui_text(key: str) -> str:
+    """Get UI text in user's native language"""
+    native = st.session_state.get("native_language", "日本語")
+    texts = UI_TEXT.get(native, UI_TEXT["English"])
+    text = texts.get(key, key)
+    # Replace {target} placeholder if present
+    if "{target}" in text:
+        text = text.format(target=st.session_state.get("target_language", "English"))
+    return text
 
 # Characters profiles
 SISTERS = {
@@ -88,6 +333,40 @@ CEFR_COLORS = {
 # Sidebar
 with st.sidebar:
     st.title("🌏 Settings")
+
+    # Language Selection
+    st.subheader("🗣️ Languages")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        native_options = list(LANGUAGES.keys())
+        native_idx = native_options.index(st.session_state.native_language) if st.session_state.native_language in native_options else 1
+        new_native = st.selectbox(
+            "Native",
+            native_options,
+            index=native_idx,
+            format_func=lambda x: f"{LANGUAGES[x]['flag']} {x}"
+        )
+        if new_native != st.session_state.native_language:
+            st.session_state.native_language = new_native
+            st.rerun()
+
+    with col2:
+        # Filter out native language from target options
+        target_options = [lang for lang in LANGUAGES.keys() if lang != st.session_state.native_language]
+        target_idx = target_options.index(st.session_state.target_language) if st.session_state.target_language in target_options else 0
+        new_target = st.selectbox(
+            "Learning",
+            target_options,
+            index=target_idx,
+            format_func=lambda x: f"{LANGUAGES[x]['flag']} {x}"
+        )
+        if new_target != st.session_state.target_language:
+            st.session_state.target_language = new_target
+            st.rerun()
+
+    st.caption(f"{LANGUAGES[st.session_state.native_language]['flag']} → {LANGUAGES[st.session_state.target_language]['flag']}")
+    st.divider()
 
     # Show CEFR Level if assessed
     if st.session_state.cefr_level:
@@ -164,60 +443,43 @@ if st.session_state.step == 0:
 
     # Intro phase
     if phase == "intro":
-        st.header("📊 英語レベル診断テスト")
-        st.markdown("""
-        ### あなたの英語レベルを測定します
-
-        **CEFR（ヨーロッパ言語共通参照枠）** に基づいて、あなたの英語力を判定します。
-
-        | レベル | 説明 |
-        |--------|------|
-        | **A1** | 入門 - 基本的な表現を理解できる |
-        | **A2** | 初級 - 日常的な表現を理解できる |
-        | **B1** | 中級 - 要点を理解できる |
-        | **B2** | 中上級 - 複雑な文章を理解できる |
-        | **C1** | 上級 - 高度な内容を理解できる |
-        | **C2** | 最上級 - ネイティブに近い |
-
-        ---
-
-        **テスト内容:**
-        1. 文法問題 (5問)
-        2. 語彙問題 (5問)
-        3. リスニング問題 (3問)
-
-        所要時間: 約5分
-        """)
+        target_lang = st.session_state.target_language
+        st.header(get_ui_text("placement_title"))
+        st.markdown(get_ui_text("placement_intro"))
+        st.markdown(get_ui_text("cefr_table"))
+        st.markdown("---")
+        st.markdown(get_ui_text("test_content"))
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("📝 テストを開始", type="primary", use_container_width=True):
+            if st.button(get_ui_text("start_test"), type="primary", use_container_width=True):
                 st.session_state.placement_test_phase = "grammar"
                 st.session_state.placement_answers = {"grammar": [], "vocabulary": [], "listening": []}
                 st.rerun()
         with col2:
-            if st.button("⏭️ スキップ (A2で開始)", use_container_width=True):
+            if st.button(get_ui_text("skip_test"), use_container_width=True):
                 st.session_state.cefr_level = "A2"
                 st.session_state.level_info = {
                     "level": "A2",
                     "level_name_en": "Elementary",
                     "level_name_jp": "初級",
-                    "description_jp": "テストをスキップしました。A2レベルで開始します。"
+                    "description": get_ui_text("skip_desc")
                 }
                 st.session_state.placement_test_phase = "done"
                 st.session_state.step = 1
+                st.query_params["level"] = "A2"  # Save to URL for iPhone sleep recovery
                 st.rerun()
 
     # Grammar phase
     elif phase == "grammar":
-        st.header("📝 文法テスト (1/3)")
+        st.header(get_ui_text("grammar_test"))
         st.progress(0.33)
 
         # Generate questions if not already
         if "grammar" not in st.session_state.placement_questions:
-            with st.spinner("問題を生成中..."):
+            with st.spinner(get_ui_text("generating")):
                 kimi = get_kimi()
-                questions = kimi.generate_placement_test("grammar")
+                questions = kimi.generate_placement_test("grammar", st.session_state.target_language)
                 st.session_state.placement_questions["grammar"] = questions.get("questions", [])
 
         questions = st.session_state.placement_questions.get("grammar", [])
@@ -229,7 +491,7 @@ if st.session_state.step == 0:
                     st.markdown(f"**Q{i+1}. ({q.get('level', '?')})** {q.get('question', '')}")
                     options = q.get("options", [])
                     answer = st.radio(
-                        f"選択してください:",
+                        get_ui_text("select_answer"),
                         options,
                         key=f"grammar_{i}",
                         index=None
@@ -237,7 +499,7 @@ if st.session_state.step == 0:
                     answers.append(answer)
                     st.divider()
 
-                if st.form_submit_button("次へ ▶", type="primary", use_container_width=True):
+                if st.form_submit_button(get_ui_text("next"), type="primary", use_container_width=True):
                     # Store answers with correctness
                     grammar_results = []
                     for i, (q, ans) in enumerate(zip(questions, answers)):
@@ -259,13 +521,13 @@ if st.session_state.step == 0:
 
     # Vocabulary phase
     elif phase == "vocabulary":
-        st.header("📚 語彙テスト (2/3)")
+        st.header(get_ui_text("vocab_test"))
         st.progress(0.66)
 
         if "vocabulary" not in st.session_state.placement_questions:
-            with st.spinner("問題を生成中..."):
+            with st.spinner(get_ui_text("generating")):
                 kimi = get_kimi()
-                questions = kimi.generate_placement_test("vocabulary")
+                questions = kimi.generate_placement_test("vocabulary", st.session_state.target_language)
                 st.session_state.placement_questions["vocabulary"] = questions.get("questions", [])
 
         questions = st.session_state.placement_questions.get("vocabulary", [])
@@ -277,7 +539,7 @@ if st.session_state.step == 0:
                     st.markdown(f"**Q{i+1}. ({q.get('level', '?')})** {q.get('question', '')}")
                     options = q.get("options", [])
                     answer = st.radio(
-                        f"選択してください:",
+                        get_ui_text("select_answer"),
                         options,
                         key=f"vocab_{i}",
                         index=None
@@ -285,7 +547,7 @@ if st.session_state.step == 0:
                     answers.append(answer)
                     st.divider()
 
-                if st.form_submit_button("次へ ▶", type="primary", use_container_width=True):
+                if st.form_submit_button(get_ui_text("next"), type="primary", use_container_width=True):
                     vocab_results = []
                     for i, (q, ans) in enumerate(zip(questions, answers)):
                         correct_idx = q.get("correct", 0)
@@ -306,13 +568,13 @@ if st.session_state.step == 0:
 
     # Listening phase
     elif phase == "listening":
-        st.header("🎧 リスニングテスト (3/3)")
+        st.header(get_ui_text("listening_test"))
         st.progress(1.0)
 
         if "listening" not in st.session_state.placement_questions:
-            with st.spinner("問題を生成中..."):
+            with st.spinner(get_ui_text("generating")):
                 kimi = get_kimi()
-                questions = kimi.generate_placement_test("listening")
+                questions = kimi.generate_placement_test("listening", st.session_state.target_language)
                 st.session_state.placement_questions["listening"] = questions.get("questions", [])
 
         questions = st.session_state.placement_questions.get("listening", [])
@@ -326,7 +588,7 @@ if st.session_state.step == 0:
                     # Play audio
                     audio_text = q.get("audio_text", "")
                     if audio_text:
-                        st.info(f"🔊 音声テキスト: \"{audio_text}\"")
+                        st.info(f"🔊 \"{audio_text}\"")
                         # Generate TTS for listening
                         if st.session_state.get(f"listening_audio_{i}") is None:
                             try:
@@ -342,7 +604,7 @@ if st.session_state.step == 0:
                     st.markdown(f"**{q.get('question', '')}**")
                     options = q.get("options", [])
                     answer = st.radio(
-                        f"選択してください:",
+                        get_ui_text("select_answer"),
                         options,
                         key=f"listen_{i}",
                         index=None
@@ -350,7 +612,7 @@ if st.session_state.step == 0:
                     answers.append(answer)
                     st.divider()
 
-                if st.form_submit_button("結果を見る 📊", type="primary", use_container_width=True):
+                if st.form_submit_button(get_ui_text("see_results"), type="primary", use_container_width=True):
                     listen_results = []
                     for i, (q, ans) in enumerate(zip(questions, answers)):
                         correct_idx = q.get("correct", 0)
@@ -398,11 +660,12 @@ if st.session_state.step == 0:
             })
 
         # Store level
-        st.session_state.cefr_level = level_result.get("level", "A2")
+        level = level_result.get("level", "A2")
+        st.session_state.cefr_level = level
         st.session_state.level_info = level_result
+        st.query_params["level"] = level  # Save to URL for iPhone sleep recovery
 
         # Display result
-        level = level_result.get("level", "A2")
         color = CEFR_COLORS.get(level, "#666")
 
         st.markdown(f"""
@@ -451,51 +714,59 @@ if st.session_state.step == 0:
             st.rerun()
 
 # ===========================================
-# STEP 1: Japanese Input
+# STEP 1: Native Language Input
 # ===========================================
 elif st.session_state.step == 1:
-    st.header("① 日本語で伝えたい内容を書く")
-    st.caption("💡 Ctrl+Enter で次へ進めます")
+    native_lang = st.session_state.native_language
+    target_lang = st.session_state.target_language
+    native_flag = LANGUAGES[native_lang]["flag"]
+
+    st.header(f"① {native_flag} {get_ui_text('what_to_say')}")
+    st.caption("💡 Ctrl+Enter")
 
     with st.form("step1_form"):
-        japanese_input = st.text_area(
-            "何を言いたいですか？",
-            value=st.session_state.japanese_text,
-            placeholder="例: 明日、買い物に行きたいな",
+        native_input = st.text_area(
+            get_ui_text("what_to_say"),
+            value=st.session_state.native_text,
+            placeholder=get_ui_text("placeholder_native"),
             height=100
         )
-        submitted = st.form_submit_button("次へ ▶", type="primary")
+        submitted = st.form_submit_button(get_ui_text("next"), type="primary")
 
-        if submitted and japanese_input:
-            st.session_state.japanese_text = japanese_input
+        if submitted and native_input:
+            st.session_state.native_text = native_input
             st.session_state.step = 2
             st.rerun()
 
 # ===========================================
-# STEP 2: English Writing
+# STEP 2: Target Language Writing
 # ===========================================
 elif st.session_state.step == 2:
-    st.header("② 英語で書いてみましょう【Writing】")
-    st.caption("💡 Ctrl+Enter で添削へ進めます")
+    native_lang = st.session_state.native_language
+    target_lang = st.session_state.target_language
+    target_flag = LANGUAGES[target_lang]["flag"]
 
-    st.info(f"💬 伝えたいこと: 「{st.session_state.japanese_text}」")
+    st.header(f"② {target_flag} {get_ui_text('write_in_target')}【Writing】")
+    st.caption("💡 Ctrl+Enter")
+
+    st.info(f"💬 {st.session_state.native_text}")
 
     # Back button outside form
-    if st.button("◀ 戻る"):
+    if st.button(get_ui_text("back")):
         st.session_state.step = 1
         st.rerun()
 
     with st.form("step2_form"):
-        english_input = st.text_area(
-            "英語で書いてください",
-            value=st.session_state.english_text,
-            placeholder="例: I want to go shopping tomorrow",
+        target_input = st.text_area(
+            get_ui_text("write_in_target"),
+            value=st.session_state.target_text,
+            placeholder="",
             height=100
         )
-        submitted = st.form_submit_button("添削する ✓ (Ctrl+Enter)", type="primary", use_container_width=True)
+        submitted = st.form_submit_button(f"{get_ui_text('correction')} ✓", type="primary", use_container_width=True)
 
-        if submitted and english_input:
-            st.session_state.english_text = english_input
+        if submitted and target_input:
+            st.session_state.target_text = target_input
             st.session_state.step = 3
             st.rerun()
 
@@ -503,40 +774,45 @@ elif st.session_state.step == 2:
 # STEP 3: Writing Correction
 # ===========================================
 elif st.session_state.step == 3:
-    st.header("③ Kimi が添削します")
+    native_lang = st.session_state.native_language
+    target_lang = st.session_state.target_language
 
-    with st.spinner("添削中..."):
+    st.header(f"③ {get_ui_text('correction')}")
+
+    with st.spinner("..."):
         if st.session_state.writing_feedback is None:
             try:
                 kimi = get_kimi()
                 feedback = kimi.correct_writing(
-                    st.session_state.japanese_text,
-                    st.session_state.english_text
+                    st.session_state.native_text,
+                    st.session_state.target_text,
+                    native_lang,
+                    target_lang
                 )
                 st.session_state.writing_feedback = feedback
-                st.session_state.corrected_text = feedback.get("corrected", st.session_state.english_text)
+                st.session_state.corrected_text = feedback.get("corrected", st.session_state.target_text)
             except Exception as e:
                 st.error(f"Error: {e}")
                 st.session_state.writing_feedback = {
-                    "original": st.session_state.english_text,
-                    "corrected": st.session_state.english_text,
+                    "original": st.session_state.target_text,
+                    "corrected": st.session_state.target_text,
                     "is_correct": True,
                     "corrections": [],
                     "rating": 3,
-                    "encouragement_jp": "添削サービスに接続できませんでした"
+                    "encouragement": "Service unavailable"
                 }
-                st.session_state.corrected_text = st.session_state.english_text
+                st.session_state.corrected_text = st.session_state.target_text
 
     feedback = st.session_state.writing_feedback
 
     # Show results
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Your writing:")
-        st.info(feedback.get("original", st.session_state.english_text))
+        st.subheader(get_ui_text("your_writing"))
+        st.info(feedback.get("original", st.session_state.target_text))
 
     with col2:
-        st.subheader("Corrected:")
+        st.subheader(get_ui_text("corrected"))
         if feedback.get("is_correct"):
             st.success(feedback.get("corrected", ""))
         else:
@@ -548,21 +824,21 @@ elif st.session_state.step == 3:
         st.subheader("📝 Corrections:")
         for c in corrections:
             st.markdown(f"- **{c.get('error', '')}** → {c.get('fix', '')}")
-            st.caption(f"  💡 {c.get('explanation_jp', '')}")
+            st.caption(f"  💡 {c.get('explanation', '')}")
 
     # Rating
     rating = feedback.get("rating", 3)
     st.markdown(f"**Rating:** {'⭐' * rating}")
-    st.info(f"💪 {feedback.get('encouragement_jp', '頑張りましょう！')}")
+    st.info(f"💪 {feedback.get('encouragement', 'Keep going!')}")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("◀ 書き直す"):
+        if st.button(get_ui_text("back")):
             st.session_state.writing_feedback = None
             st.session_state.step = 2
             st.rerun()
     with col2:
-        if st.button("発音練習へ ▶", type="primary"):
+        if st.button(get_ui_text("next"), type="primary"):
             st.session_state.step = 4
             st.rerun()
 
@@ -570,76 +846,95 @@ elif st.session_state.step == 3:
 # STEP 4: Speaking Practice
 # ===========================================
 elif st.session_state.step == 4:
-    st.header("④ 読み上げましょう【Speaking】")
+    target_lang = st.session_state.target_language
+    target_code = LANGUAGES[target_lang]["code"]
 
-    st.success(f"📖 Read this aloud: **{st.session_state.corrected_text}**")
+    st.header(f"④ {get_ui_text('speaking_practice')}【Speaking】")
 
-    # Listen to example first (using User/Sam voice for example)
-    st.subheader("🔊 お手本を聴く (Sam)")
-    if st.button("▶ Play Example"):
-        try:
-            tts = get_tts()
-            audio_bytes = tts.generate_speech(
-                st.session_state.corrected_text,
-                sister="User"  # Use Sam (male) voice for example
-            )
-            st.audio(audio_bytes, format="audio/mp3")
-        except Exception as e:
-            st.error(f"TTS Error: {e}")
+    st.success(f"📖 {get_ui_text('speaking_practice')}: **{st.session_state.corrected_text}**")
 
-    st.divider()
-
-    # Record user speech
-    st.subheader("🎤 あなたの番です")
-
-    # Back button
-    if st.button("◀ 戻る"):
+    # Back button at top
+    if st.button(get_ui_text("back"), key="step4_back_btn"):
         st.session_state.step = 3
         st.rerun()
 
-    st.markdown("**マイクボタンを押して録音してください：**")
-    st.caption("🔴 赤いボタンを押すと録音開始、もう一度押すと停止")
+    # Two columns: Example (left) and Recording (right)
+    col_example, col_record = st.columns(2)
 
-    # Audio recorder (lazy import for performance)
-    from audio_recorder_streamlit import audio_recorder
-    audio_bytes = audio_recorder(
-        text="",
-        recording_color="#e74c3c",
-        neutral_color="#3498db",
-        icon_name="microphone",
-        icon_size="3x",
-        sample_rate=16000
-    )
-
-    # Show transcription result
-    if audio_bytes:
-        st.audio(audio_bytes, format="audio/wav")
-
-        with st.spinner("音声を認識中..."):
+    with col_example:
+        st.subheader(get_ui_text("listen_example"))
+        if st.button("▶ Play Example", key="play_example_btn", use_container_width=True):
             try:
-                stt = get_stt()
-                result = stt.transcribe_bytes(audio_bytes, filename="recording.wav", language="en")
-                transcribed_text = result.get("text", "")
-
-                if transcribed_text:
-                    st.session_state.spoken_text = transcribed_text
-                    st.success(f"**認識結果:** {transcribed_text}")
-
-                    # Auto-proceed or manual button
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("🔄 録り直す", use_container_width=True):
-                            st.session_state.spoken_text = ""
-                            st.rerun()
-                    with col2:
-                        if st.button("発音チェックへ ▶", type="primary", use_container_width=True):
-                            st.session_state.step = 5
-                            st.rerun()
-                else:
-                    st.warning("音声を認識できませんでした。もう一度お試しください。")
+                tts = get_tts()
+                example_audio = tts.generate_speech(
+                    st.session_state.corrected_text,
+                    sister="User"  # Use Sam (male) voice for example
+                )
+                st.session_state.example_audio = example_audio
             except Exception as e:
-                st.error(f"STT Error: {e}")
-                st.caption("音声認識に失敗しました。下のテキスト入力をお使いください。")
+                st.error(f"TTS Error: {e}")
+        if st.session_state.get("example_audio"):
+            st.audio(st.session_state.example_audio, format="audio/mp3")
+
+    with col_record:
+        st.subheader(get_ui_text("your_turn"))
+        st.markdown(f"**{get_ui_text('record_instruction')}**")
+
+        # Audio recorder (only show if no recording yet)
+        if not st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
+            from audio_recorder_streamlit import audio_recorder
+            recorded_audio = audio_recorder(
+                text="",
+                recording_color="#e74c3c",
+                neutral_color="#3498db",
+                icon_name="microphone",
+                icon_size="2x",
+                sample_rate=16000,
+                key="audio_recorder_step4"
+            )
+            # Save recording to session state for preview
+            if recorded_audio:
+                st.session_state.recorded_audio = recorded_audio
+                st.rerun()
+
+    # Preview recorded audio before processing
+    if st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
+        st.audio(st.session_state.recorded_audio, format="audio/wav")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("🔄 録り直す", key="rerecord_btn", use_container_width=True):
+                st.session_state.recorded_audio = None
+                st.rerun()
+        with col_b:
+            if st.button("✅ 認識する", key="recognize_btn", type="primary", use_container_width=True):
+                with st.spinner("認識中..."):
+                    try:
+                        stt = get_stt()
+                        result = stt.transcribe_bytes(st.session_state.recorded_audio, filename="recording.wav", language=target_code)
+                        transcribed_text = result.get("text", "")
+                        if transcribed_text:
+                            st.session_state.spoken_text = transcribed_text
+                            st.rerun()
+                        else:
+                            st.warning("音声を認識できませんでした。")
+                            st.session_state.recorded_audio = None
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"STT Error: {e}")
+
+    # Show result and buttons (outside columns, full width)
+    if st.session_state.get("spoken_text"):
+        st.success(f"**認識結果:** {st.session_state.spoken_text}")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 録り直す", key="retry_btn", use_container_width=True):
+                st.session_state.spoken_text = ""
+                st.session_state.recorded_audio = None
+                st.rerun()
+        with col2:
+            if st.button("発音チェックへ ▶", key="proceed_btn", type="primary", use_container_width=True):
+                st.session_state.step = 5
+                st.rerun()
 
     # Fallback: Manual text input
     st.divider()
@@ -647,9 +942,10 @@ elif st.session_state.step == 4:
         manual_text = st.text_input(
             "発音した内容を入力:",
             value=st.session_state.get("spoken_text", ""),
-            placeholder="I want to go shopping tomorrow"
+            placeholder="I want to go shopping tomorrow",
+            key="manual_text_input"
         )
-        if st.button("この内容で発音チェック", use_container_width=True):
+        if st.button("この内容で発音チェック", key="manual_proceed_btn", use_container_width=True):
             if manual_text:
                 st.session_state.spoken_text = manual_text
                 st.session_state.step = 5
@@ -659,15 +955,20 @@ elif st.session_state.step == 4:
 # STEP 5: Speaking Correction
 # ===========================================
 elif st.session_state.step == 5:
-    st.header("⑤ 発音チェック【Speaking Feedback】")
+    native_lang = st.session_state.native_language
+    target_lang = st.session_state.target_language
 
-    with st.spinner("発音を分析中..."):
+    st.header("⑤ Speaking Feedback")
+
+    with st.spinner("..."):
         if st.session_state.speaking_feedback is None:
             try:
                 kimi = get_kimi()
                 feedback = kimi.correct_speaking(
                     st.session_state.corrected_text,
-                    st.session_state.spoken_text
+                    st.session_state.spoken_text,
+                    native_lang,
+                    target_lang
                 )
                 st.session_state.speaking_feedback = feedback
             except Exception as e:
@@ -677,8 +978,8 @@ elif st.session_state.step == 5:
                     "spoken": st.session_state.spoken_text,
                     "accuracy_percent": 100,
                     "word_comparison": [],
-                    "overall_feedback_jp": "分析できませんでした",
-                    "focus_point_jp": "もう一度試してください"
+                    "overall_feedback": "Could not analyze",
+                    "focus_point": "Please try again"
                 }
 
     feedback = st.session_state.speaking_feedback
@@ -710,16 +1011,16 @@ elif st.session_state.step == 5:
         for w in word_comparison:
             icon = "✅" if w.get("correct") else "❌"
             st.markdown(f"{icon} **{w.get('target', '')}** → {w.get('spoken', '')}")
-            if not w.get("correct") and w.get("tip_jp"):
-                st.caption(f"  💡 {w.get('tip_jp', '')}")
+            if not w.get("correct") and w.get("tip"):
+                st.caption(f"  💡 {w.get('tip', '')}")
 
     # Overall feedback
-    st.info(f"📊 {feedback.get('overall_feedback_jp', '')}")
-    st.warning(f"🎯 次回のポイント: {feedback.get('focus_point_jp', '')}")
+    st.info(f"📊 {feedback.get('overall_feedback', '')}")
+    st.warning(f"🎯 {feedback.get('focus_point', '')}")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("◀ もう一度話す"):
+        if st.button(get_ui_text("back")):
             st.session_state.speaking_feedback = None
             st.session_state.step = 4
             st.rerun()
@@ -738,33 +1039,38 @@ elif st.session_state.step == 5:
 # STEP 6: Sister Response (Listening)
 # ===========================================
 elif st.session_state.step == 6:
-    st.header(f"⑥ キャラクターの返答【Listening】")
-    st.caption(f"💡 左のメニューでキャラクターを切り替えると、それぞれの視点で答えます")
+    native_lang = st.session_state.native_language
+    target_lang = st.session_state.target_language
 
-    # Generate responses from ALL characters
+    st.header(f"⑥ Listening")
+    st.caption(f"💡 Switch characters in sidebar")
+
+    # Initialize sister_responses if needed
     if st.session_state.sister_responses is None:
         st.session_state.sister_responses = {}
 
-        with st.spinner("みんなが考え中..."):
-            kimi = get_kimi()
-            for sister_name in SISTERS.keys():
-                try:
-                    response = kimi.sister_response(
-                        sister_name,
-                        st.session_state.corrected_text,
-                        st.session_state.conversation_history
-                    )
-                    st.session_state.sister_responses[sister_name] = response
-                except Exception as e:
-                    st.error(f"{sister_name} Error: {e}")
-                    st.session_state.sister_responses[sister_name] = {
-                        "response_en": f"That sounds interesting! Tell me more.",
-                        "response_jp": "面白そう！もっと教えてください。",
-                        "words_to_highlight": ["interesting", "more"]
-                    }
-
-    # Get current sister's response
+    # Generate response ONLY for current sister (lazy loading - 4x faster)
     current_sister = st.session_state.current_sister
+    if current_sister not in st.session_state.sister_responses:
+        with st.spinner("..."):
+            try:
+                kimi = get_kimi()
+                response = kimi.sister_response(
+                    current_sister,
+                    st.session_state.corrected_text,
+                    st.session_state.conversation_history,
+                    target_lang,
+                    native_lang
+                )
+                st.session_state.sister_responses[current_sister] = response
+            except Exception as e:
+                st.error(f"{current_sister} Error: {e}")
+                st.session_state.sister_responses[current_sister] = {
+                    "response_en": f"That sounds interesting! Tell me more.",
+                    "response_jp": "Interesting!",
+                    "words_to_highlight": ["interesting", "more"]
+                }
+
     response = st.session_state.sister_responses.get(current_sister, {})
     response_en = response.get("response_en", "")
 
@@ -775,34 +1081,15 @@ elif st.session_state.step == 6:
     st.subheader("🔊 Listen:")
 
     # TTS Playback
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("▶ Play", use_container_width=True):
-            try:
-                current_sister = st.session_state.current_sister
-                print(f"[STEP 6] Play clicked - Sister: {current_sister}")  # Debug
-                tts = get_tts()
-                print(f"[STEP 6] TTS instance created, calling generate_speech with sister={current_sister}")  # Debug
-                audio_bytes = tts.generate_speech(
-                    response_en,
-                    sister=current_sister
-                )
-                st.session_state.audio_data = audio_bytes
-                print(f"[STEP 6] Audio generated successfully, {len(audio_bytes)} bytes")  # Debug
-            except Exception as e:
-                st.error(f"TTS Error: {e}")
-                print(f"[STEP 6] TTS Error: {e}")  # Debug
+    if st.button("▶ Play", key="step6_play_btn"):
+        try:
+            tts = get_tts()
+            audio_bytes = tts.generate_speech(response_en, sister=current_sister)
+            st.session_state.audio_data = audio_bytes
+        except Exception as e:
+            st.error(f"TTS Error: {e}")
 
-    with col2:
-        if st.button("🐢 Slow", use_container_width=True):
-            st.info("Slow playback coming soon!")
-
-    with col3:
-        if st.button("🔁 Repeat", use_container_width=True):
-            if st.session_state.audio_data:
-                st.audio(st.session_state.audio_data, format="audio/mp3")
-
-    if st.session_state.audio_data:
+    if st.session_state.get("audio_data"):
         st.audio(st.session_state.audio_data, format="audio/mp3")
 
     # Show English with highlights
@@ -823,12 +1110,12 @@ elif st.session_state.step == 6:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("◀ 戻る"):
+        if st.button("◀ 戻る", key="step6_back_btn"):
             st.session_state.sister_responses = None
             st.session_state.step = 5
             st.rerun()
     with col2:
-        if st.button("Reading へ ▶", type="primary"):
+        if st.button("Reading へ ▶", key="step6_next_btn", type="primary"):
             st.session_state.step = 7
             st.rerun()
 
@@ -1056,7 +1343,7 @@ elif st.session_state.step == 9:
     with col1:
         if st.button("🔄 New Topic", use_container_width=True):
             # Reset for new conversation
-            for key in ["japanese_text", "english_text", "corrected_text",
+            for key in ["native_text", "target_text", "corrected_text",
                        "writing_feedback", "spoken_text", "speaking_feedback",
                        "sister_responses", "quiz", "quiz_answer", "audio_data",
                        "_feedback_recorded"]:
@@ -1074,8 +1361,8 @@ elif st.session_state.step == 9:
                 "sister": current_response.get("response_en", "")
             })
             # Reset for next turn but keep context
-            st.session_state.japanese_text = ""
-            st.session_state.english_text = ""
+            st.session_state.native_text = ""
+            st.session_state.target_text = ""
             st.session_state.corrected_text = ""
             st.session_state.writing_feedback = None
             st.session_state.spoken_text = ""
