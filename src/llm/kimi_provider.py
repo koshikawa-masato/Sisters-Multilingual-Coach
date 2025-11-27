@@ -186,9 +186,37 @@ Respond in this JSON format:
         Args:
             test_type: "grammar", "vocabulary", or "listening"
         """
+        import random
+
+        # Random topics for variety
+        grammar_topics = [
+            "travel and vacation", "work and career", "food and cooking",
+            "sports and hobbies", "technology and internet", "family and relationships",
+            "shopping and money", "health and fitness", "weather and seasons",
+            "movies and entertainment", "education and learning", "city life"
+        ]
+        vocab_themes = [
+            "emotions and feelings", "nature and environment", "business and finance",
+            "art and culture", "science and technology", "daily routines",
+            "social media", "travel experiences", "food and dining", "fashion and style"
+        ]
+        listening_scenarios = [
+            "at a coffee shop", "booking a hotel", "at the airport",
+            "job interview", "doctor's appointment", "restaurant order",
+            "asking for directions", "phone conversation", "meeting a friend",
+            "at a store", "travel planning", "weekend plans"
+        ]
+
+        topic = random.choice(grammar_topics)
+        theme = random.choice(vocab_themes)
+        scenario = random.choice(listening_scenarios)
+
         prompts = {
-            "grammar": """Generate 5 English grammar questions for a placement test.
+            "grammar": f"""Generate 5 UNIQUE English grammar questions for a placement test.
+Topic theme: {topic}
+
 Include questions ranging from A1 (beginner) to C1 (advanced) level.
+Make sure questions are DIFFERENT from typical textbook examples.
 
 Create questions in this format:
 - 2 easy questions (A1-A2): basic verb tenses, simple sentences
@@ -196,57 +224,63 @@ Create questions in this format:
 - 1 hard question (C1): complex structures, nuanced grammar
 
 Respond in JSON:
-{
+{{
     "questions": [
-        {
+        {{
             "level": "A1",
             "question": "Choose the correct word: She ___ to school every day.",
             "options": ["go", "goes", "going", "gone"],
             "correct": 1,
             "explanation_jp": "三人称単数なのでgoesが正解"
-        }
+        }}
     ]
-}""",
-            "vocabulary": """Generate 5 English vocabulary questions for a placement test.
+}}""",
+            "vocabulary": f"""Generate 5 UNIQUE English vocabulary questions for a placement test.
+Theme: {theme}
+
 Include questions ranging from A1 (beginner) to C1 (advanced) level.
+Make sure to use DIFFERENT words each time, not common textbook examples.
 
 Create questions testing word meaning and usage:
 - 2 easy questions (A1-A2): common everyday words
 - 2 medium questions (B1-B2): academic/business vocabulary
-- 1 hard question (C1): nuanced words, idioms
+- 1 hard question (C1): nuanced words, idioms, phrasal verbs
 
 Respond in JSON:
-{
+{{
     "questions": [
-        {
+        {{
             "level": "A1",
             "question": "What does 'happy' mean?",
             "options": ["sad", "angry", "pleased", "tired"],
             "correct": 2,
             "explanation_jp": "happyは「嬉しい、幸せ」という意味"
-        }
+        }}
     ]
-}""",
-            "listening": """Generate 3 listening comprehension scenarios for a placement test.
-Create short dialogues/sentences that would be read aloud.
+}}""",
+            "listening": f"""Generate 3 UNIQUE listening comprehension scenarios for a placement test.
+Scenario setting: {scenario}
 
-- 1 easy (A1-A2): simple greeting or question
-- 1 medium (B1-B2): everyday conversation
-- 1 hard (C1): complex statement with nuance
+Create short dialogues/sentences that would be read aloud.
+Make the conversations natural and realistic.
+
+- 1 easy (A1-A2): simple greeting or basic question
+- 1 medium (B1-B2): everyday conversation with some detail
+- 1 hard (C1): complex statement with nuance or implied meaning
 
 Respond in JSON:
-{
+{{
     "questions": [
-        {
+        {{
             "level": "A1",
             "audio_text": "Hello, my name is John. Nice to meet you.",
             "question": "What is the speaker's name?",
             "options": ["Tom", "John", "Jack", "James"],
             "correct": 1,
             "explanation_jp": "話者は自分の名前をJohnと言っています"
-        }
+        }}
     ]
-}"""
+}}"""
         }
 
         response = self.client.chat.completions.create(
