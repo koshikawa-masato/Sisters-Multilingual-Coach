@@ -4,7 +4,7 @@ AI-powered language learning through natural conversation with unique character 
 
 ## Demo
 
-**Live Demo**: https://sisters-coach.ngrok.dev
+**Live Demo**: https://sisters-coach.ngrok.dev/?native=en&target=ja&level=A1&char=Botan
 
 ## Concept
 
