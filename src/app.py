@@ -41,7 +41,7 @@ def get_stt():
 # Session state initialization
 def init_session_state():
     defaults = {
-        "step": 0,  # 0 = placement test, 1-9 = learning flow
+        "step": 1,  # Start at Step 1 (skip placement test by default)
         "native_text": "",  # Text in native language (was japanese_text)
         "target_text": "",  # Text in target language (was english_text)
         "corrected_text": "",
@@ -57,10 +57,13 @@ def init_session_state():
         "target_language": "English",  # Language being learned
         "conversation_history": [],
         "audio_data": None,
+        # Mode settings
+        "learning_mode": "speaking",  # "speaking" (私→4人) or "listening" (4人→私)
+        "character_prompt": None,  # Character's initial prompt in listening mode
         # Level assessment
-        "cefr_level": None,  # A1, A2, B1, B2, C1, C2
-        "level_info": None,  # Full level info dict
-        "placement_test_phase": "intro",  # intro, grammar, vocabulary, listening, result
+        "cefr_level": "A2",  # Default level (beginner-intermediate)
+        "level_info": {"level": "A2"},  # Default level info (localized name from translations)
+        "placement_test_phase": "done",  # Skip placement test by default
         "placement_answers": {},  # Store test answers
         "placement_questions": {},  # Store generated questions
         "sessions_completed": 0,
@@ -86,14 +89,23 @@ def init_session_state():
     if "char" in params and params["char"] in ["Botan", "Kasho", "Yuri", "Ojisan"]:
         st.session_state.current_sister = params["char"]
 
-    # Restore CEFR level
-    if "level" in params and not st.session_state.get("cefr_level"):
+    # Restore CEFR level from URL (always override if present in URL)
+    if "level" in params:
         level = params["level"]
         if level in ["A1", "A2", "B1", "B2", "C1", "C2"]:
             st.session_state.cefr_level = level
             st.session_state.level_info = {"level": level}
             st.session_state.placement_test_phase = "done"
             st.session_state.step = 1
+
+    # Restore learning mode
+    if "mode" in params and params["mode"] in ["speaking", "listening"]:
+        new_mode = params["mode"]
+        if st.session_state.learning_mode != new_mode:
+            st.session_state.learning_mode = new_mode
+            st.session_state.character_prompt = None
+            if st.session_state.cefr_level:
+                st.session_state.step = 1
 
 init_session_state()
 
@@ -171,15 +183,38 @@ with st.sidebar:
     st.caption(f"{LANGUAGES[st.session_state.native_language]['flag']} → {LANGUAGES[st.session_state.target_language]['flag']}")
     st.divider()
 
+    # Mode Selection
+    st.subheader(f"🎮 {get_ui_text('mode_title')}")
+
+    current_mode = st.session_state.learning_mode
+
+    # Use links for reliable mode switching across all browsers
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        if current_mode == "speaking":
+            st.markdown(f"**📤 {get_ui_text('mode_speaking')}** ✓")
+        else:
+            st.markdown(f"[📤 {get_ui_text('mode_speaking')}](?mode=speaking)")
+    with col_m2:
+        if current_mode == "listening":
+            st.markdown(f"**📥 {get_ui_text('mode_listening')}** ✓")
+        else:
+            st.markdown(f"[📥 {get_ui_text('mode_listening')}](?mode=listening)")
+
+    st.caption(get_ui_text("mode_caption"))
+    st.divider()
+
     # Show CEFR Level if assessed
     if st.session_state.cefr_level:
         level = st.session_state.cefr_level
-        level_info = st.session_state.level_info or {}
         color = CEFR_COLORS.get(level, "#666")
+        # Get localized level name
+        cefr_levels = get_ui_text("cefr_levels")
+        level_name = cefr_levels.get(level, "") if isinstance(cefr_levels, dict) else ""
         st.markdown(f"""
         <div style="background-color: {color}; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 10px;">
             <span style="font-size: 24px; font-weight: bold; color: white;">CEFR {level}</span><br>
-            <span style="color: white; font-size: 12px;">{level_info.get('level_name_jp', '')}</span>
+            <span style="color: white; font-size: 12px;">{level_name}</span>
         </div>
         """, unsafe_allow_html=True)
         if st.button(get_ui_text("retake_test"), use_container_width=True):
@@ -520,248 +555,479 @@ if st.session_state.step == 0:
             st.rerun()
 
 # ===========================================
-# STEP 1: Native Language Input
+# STEP 1: Mode-dependent start
+# Speaking mode: Native Language Input
+# Listening mode: Character speaks first
 # ===========================================
 elif st.session_state.step == 1:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
     native_flag = LANGUAGES[native_lang]["flag"]
+    target_flag = LANGUAGES[target_lang]["flag"]
+    current_sister = st.session_state.current_sister
 
-    st.header(f"1. {native_flag} {get_ui_text('what_to_say')}")
-    st.caption("💡 Ctrl+Enter")
+    # ========== SPEAKING MODE (私→4人) ==========
+    if st.session_state.learning_mode == "speaking":
+        st.header(f"1. {native_flag} {get_ui_text('what_to_say')}")
+        st.caption("💡 Ctrl+Enter")
 
-    with st.form("step1_form"):
-        native_input = st.text_area(
-            get_ui_text("what_to_say"),
-            value=st.session_state.native_text,
-            placeholder=get_ui_text("placeholder_native"),
-            height=100
-        )
-        submitted = st.form_submit_button(get_ui_text("next"), type="primary")
+        with st.form("step1_form"):
+            native_input = st.text_area(
+                get_ui_text("what_to_say"),
+                value=st.session_state.native_text,
+                placeholder=get_ui_text("placeholder_native"),
+                height=100
+            )
+            submitted = st.form_submit_button(get_ui_text("next"), type="primary")
 
-        if submitted and native_input:
-            st.session_state.native_text = native_input
+            if submitted and native_input:
+                st.session_state.native_text = native_input
+                st.session_state.step = 2
+                st.rerun()
+
+    # ========== LISTENING MODE (4人→私) ==========
+    else:
+        st.header(f"1. 🔊 {get_ui_text('listen_to_character').format(character=current_sister)}")
+
+        # Generate character prompt if not exists
+        if st.session_state.character_prompt is None:
+            with st.spinner("..."):
+                try:
+                    kimi = get_kimi()
+                    prompt_data = kimi.generate_conversation_starter(
+                        current_sister,
+                        target_lang,
+                        native_lang,
+                        st.session_state.cefr_level or "A2"
+                    )
+                    st.session_state.character_prompt = prompt_data
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.session_state.character_prompt = {
+                        "prompt_en": "Hello! How are you today?",
+                        "prompt_jp": "こんにちは！今日はどう？",
+                        "context_hint": "",
+                        "words_to_highlight": ["Hello", "today"]
+                    }
+
+        prompt_data = st.session_state.character_prompt
+        prompt_text = prompt_data.get("prompt_en", "")
+
+        # Show character
+        st.success(f"{SISTERS[current_sister]['emoji']} **{current_sister}**")
+
+        # TTS Playback
+        if st.button("▶ Play", key="step1_play_btn"):
+            try:
+                tts = get_tts()
+                audio_bytes = tts.generate_speech(prompt_text, sister=current_sister)
+                st.session_state.audio_data = audio_bytes
+            except Exception as e:
+                st.error(f"TTS Error: {e}")
+
+        if st.session_state.get("audio_data"):
+            st.audio(st.session_state.audio_data, format="audio/mp3")
+
+        # Show text with highlights
+        st.divider()
+        words_to_highlight = prompt_data.get("words_to_highlight", [])
+        highlighted_html = prompt_text
+        for word in words_to_highlight:
+            highlighted_html = highlighted_html.replace(
+                word,
+                f'<span style="background-color: #FFEB3B; padding: 2px 4px; border-radius: 3px;">{word}</span>'
+            )
+        st.markdown(f"### {highlighted_html}", unsafe_allow_html=True)
+
+        # Context hint
+        if prompt_data.get("context_hint"):
+            st.caption(f"💡 {prompt_data.get('context_hint')}")
+
+        st.divider()
+
+        if st.button(f"Reading へ ▶", key="step1_next_btn", type="primary"):
             st.session_state.step = 2
             st.rerun()
 
 # ===========================================
-# STEP 2: Target Language Writing
+# STEP 2: Mode-dependent
+# Speaking mode: Target Language Writing
+# Listening mode: Reading (translation display)
 # ===========================================
 elif st.session_state.step == 2:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
     target_flag = LANGUAGES[target_lang]["flag"]
+    native_flag = LANGUAGES[native_lang]["flag"]
+    current_sister = st.session_state.current_sister
 
-    st.header(f"2. {target_flag} {get_ui_text('write_in_target')} [Writing]")
-    st.caption("💡 Ctrl+Enter")
+    # ========== SPEAKING MODE ==========
+    if st.session_state.learning_mode == "speaking":
+        st.header(f"2. {target_flag} {get_ui_text('write_in_target')} [Writing]")
+        st.caption("💡 Ctrl+Enter")
 
-    st.info(f"💬 {st.session_state.native_text}")
+        st.info(f"💬 {st.session_state.native_text}")
 
-    # Back button outside form
-    if st.button(get_ui_text("back")):
-        st.session_state.step = 1
-        st.rerun()
-
-    with st.form("step2_form"):
-        target_input = st.text_area(
-            get_ui_text("write_in_target"),
-            value=st.session_state.target_text,
-            placeholder="",
-            height=100
-        )
-        submitted = st.form_submit_button(f"{get_ui_text('correction')} ✓", type="primary", use_container_width=True)
-
-        if submitted and target_input:
-            st.session_state.target_text = target_input
-            st.session_state.step = 3
+        # Back button outside form
+        if st.button(get_ui_text("back")):
+            st.session_state.step = 1
             st.rerun()
 
+        with st.form("step2_form"):
+            target_input = st.text_area(
+                get_ui_text("write_in_target"),
+                value=st.session_state.target_text,
+                placeholder="",
+                height=100
+            )
+            submitted = st.form_submit_button(f"{get_ui_text('correction')} ✓", type="primary", use_container_width=True)
+
+            if submitted and target_input:
+                st.session_state.target_text = target_input
+                st.session_state.step = 3
+                st.rerun()
+
+    # ========== LISTENING MODE ==========
+    else:
+        st.header(f"2. 📖 Reading")
+
+        prompt_data = st.session_state.character_prompt or {}
+        prompt_text = prompt_data.get("prompt_en", "")
+
+        # Show character indicator
+        st.info(f"{SISTERS[current_sister]['emoji']} **{current_sister}**")
+
+        # Target language text
+        st.subheader(f"{target_flag} {target_lang}:")
+        st.success(prompt_text)
+
+        # Native language translation
+        st.subheader(f"{native_flag} {native_lang}:")
+        st.info(prompt_data.get("prompt_jp", ""))
+
+        # Key vocabulary
+        words = prompt_data.get("words_to_highlight", [])
+        if words:
+            st.subheader("📚 Key Words:")
+            for word in words:
+                st.markdown(f"- **{word}**")
+
+        st.divider()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(get_ui_text("back")):
+                st.session_state.step = 1
+                st.session_state.audio_data = None
+                st.rerun()
+        with col2:
+            if st.button(f"{get_ui_text('your_response')} ▶", type="primary"):
+                st.session_state.step = 3
+                st.rerun()
+
 # ===========================================
-# STEP 3: Writing Correction
+# STEP 3: Mode-dependent
+# Speaking mode: Writing Correction
+# Listening mode: Write your response
 # ===========================================
 elif st.session_state.step == 3:
     native_lang = st.session_state.native_language
     target_lang = st.session_state.target_language
+    target_flag = LANGUAGES[target_lang]["flag"]
+    current_sister = st.session_state.current_sister
 
-    st.header(f"3. {get_ui_text('correction')}")
+    # ========== SPEAKING MODE: Writing Correction ==========
+    if st.session_state.learning_mode == "speaking":
+        st.header(f"3. {get_ui_text('correction')}")
 
-    with st.spinner("..."):
-        if st.session_state.writing_feedback is None:
-            try:
-                kimi = get_kimi()
-                feedback = kimi.correct_writing(
-                    st.session_state.native_text,
-                    st.session_state.target_text,
-                    native_lang,
-                    target_lang
-                )
-                st.session_state.writing_feedback = feedback
-                st.session_state.corrected_text = feedback.get("corrected", st.session_state.target_text)
-            except Exception as e:
-                st.error(f"Error: {e}")
-                st.session_state.writing_feedback = {
-                    "original": st.session_state.target_text,
-                    "corrected": st.session_state.target_text,
-                    "is_correct": True,
-                    "corrections": [],
-                    "rating": 3,
-                    "encouragement": "Service unavailable"
-                }
-                st.session_state.corrected_text = st.session_state.target_text
+        with st.spinner("..."):
+            if st.session_state.writing_feedback is None:
+                try:
+                    kimi = get_kimi()
+                    feedback = kimi.correct_writing(
+                        st.session_state.native_text,
+                        st.session_state.target_text,
+                        native_lang,
+                        target_lang
+                    )
+                    st.session_state.writing_feedback = feedback
+                    st.session_state.corrected_text = feedback.get("corrected", st.session_state.target_text)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.session_state.writing_feedback = {
+                        "original": st.session_state.target_text,
+                        "corrected": st.session_state.target_text,
+                        "is_correct": True,
+                        "corrections": [],
+                        "rating": 3,
+                        "encouragement": "Service unavailable"
+                    }
+                    st.session_state.corrected_text = st.session_state.target_text
 
-    feedback = st.session_state.writing_feedback
+        feedback = st.session_state.writing_feedback
 
-    # Show results
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader(get_ui_text("your_writing"))
-        st.info(feedback.get("original", st.session_state.target_text))
+        # Show results
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader(get_ui_text("your_writing"))
+            st.info(feedback.get("original", st.session_state.target_text))
 
-    with col2:
-        st.subheader(get_ui_text("corrected"))
-        if feedback.get("is_correct"):
-            st.success(feedback.get("corrected", ""))
-        else:
-            st.warning(feedback.get("corrected", ""))
+        with col2:
+            st.subheader(get_ui_text("corrected"))
+            if feedback.get("is_correct"):
+                st.success(feedback.get("corrected", ""))
+            else:
+                st.warning(feedback.get("corrected", ""))
 
-    # Show corrections
-    corrections = feedback.get("corrections", [])
-    if corrections:
-        st.subheader("📝 Corrections:")
-        for c in corrections:
-            st.markdown(f"- **{c.get('error', '')}** → {c.get('fix', '')}")
-            st.caption(f"  💡 {c.get('explanation', '')}")
+        # Show corrections
+        corrections = feedback.get("corrections", [])
+        if corrections:
+            st.subheader("📝 Corrections:")
+            for c in corrections:
+                st.markdown(f"- **{c.get('error', '')}** → {c.get('fix', '')}")
+                st.caption(f"  💡 {c.get('explanation', '')}")
 
-    # Rating
-    rating = feedback.get("rating", 3)
-    st.markdown(f"**Rating:** {'⭐' * rating}")
-    st.info(f"💪 {feedback.get('encouragement', 'Keep going!')}")
+    # ========== LISTENING MODE: Write your response ==========
+    else:
+        st.header(f"3. ✍️ {get_ui_text('write_response').format(target=target_lang)}")
+        st.caption("💡 Ctrl+Enter")
 
-    col1, col2 = st.columns(2)
-    with col1:
+        # Show what the character said
+        prompt_data = st.session_state.character_prompt or {}
+        st.info(f"{SISTERS[current_sister]['emoji']} {current_sister}: \"{prompt_data.get('prompt_en', '')}\"")
+
+        # Back button outside form
         if st.button(get_ui_text("back")):
-            st.session_state.writing_feedback = None
             st.session_state.step = 2
             st.rerun()
-    with col2:
-        if st.button(get_ui_text("next"), type="primary"):
-            st.session_state.step = 4
-            st.rerun()
+
+        with st.form("step3_listening_form"):
+            target_input = st.text_area(
+                get_ui_text("your_response"),
+                value=st.session_state.target_text,
+                placeholder="",
+                height=100
+            )
+            submitted = st.form_submit_button(f"{get_ui_text('correction')} ✓", type="primary", use_container_width=True)
+
+            if submitted and target_input:
+                st.session_state.target_text = target_input
+                # For listening mode, use the character's prompt as context for correction
+                st.session_state.native_text = prompt_data.get("prompt_jp", "")
+                st.session_state.step = 4
+                st.rerun()
+
+    # Speaking mode: Show rating and navigation (only if feedback exists)
+    if st.session_state.learning_mode == "speaking" and st.session_state.writing_feedback:
+        feedback = st.session_state.writing_feedback
+        # Rating
+        rating = feedback.get("rating", 3)
+        st.markdown(f"**Rating:** {'⭐' * rating}")
+        st.info(f"💪 {feedback.get('encouragement', 'Keep going!')}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(get_ui_text("back")):
+                st.session_state.writing_feedback = None
+                st.session_state.step = 2
+                st.rerun()
+        with col2:
+            if st.button(get_ui_text("next"), type="primary"):
+                st.session_state.step = 4
+                st.rerun()
 
 # ===========================================
-# STEP 4: Speaking Practice
+# STEP 4: Mode-dependent
+# Speaking mode: Speaking Practice
+# Listening mode: Correction of response
 # ===========================================
 elif st.session_state.step == 4:
     target_lang = st.session_state.target_language
+    native_lang = st.session_state.native_language
     target_code = LANGUAGES[target_lang]["code"]
+    current_sister = st.session_state.current_sister
 
-    st.header(f"4. {get_ui_text('speaking_practice')} [Speaking]")
+    # ========== LISTENING MODE: Correction ==========
+    if st.session_state.learning_mode == "listening":
+        st.header(f"4. {get_ui_text('correction')}")
 
-    st.success(f"📖 {get_ui_text('speaking_practice')}: **{st.session_state.corrected_text}**")
+        # Show what the character said and user's response
+        prompt_data = st.session_state.character_prompt or {}
+        st.info(f"{SISTERS[current_sister]['emoji']} {current_sister}: \"{prompt_data.get('prompt_en', '')}\"")
 
-    # Back button at top
-    if st.button(get_ui_text("back"), key="step4_back_btn"):
-        st.session_state.step = 3
-        st.rerun()
+        with st.spinner("..."):
+            if st.session_state.writing_feedback is None:
+                try:
+                    kimi = get_kimi()
+                    # For listening mode, we're correcting a response to a prompt
+                    feedback = kimi.correct_writing(
+                        f"Response to: {prompt_data.get('prompt_en', '')}",
+                        st.session_state.target_text,
+                        native_lang,
+                        target_lang
+                    )
+                    st.session_state.writing_feedback = feedback
+                    st.session_state.corrected_text = feedback.get("corrected", st.session_state.target_text)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.session_state.writing_feedback = {
+                        "original": st.session_state.target_text,
+                        "corrected": st.session_state.target_text,
+                        "is_correct": True,
+                        "corrections": [],
+                        "rating": 3,
+                        "encouragement": "Service unavailable"
+                    }
+                    st.session_state.corrected_text = st.session_state.target_text
 
-    # Two columns: Example (left) and Recording (right)
-    col_example, col_record = st.columns(2)
+        feedback = st.session_state.writing_feedback
 
-    with col_example:
-        st.subheader(get_ui_text("listen_example"))
-        if st.button("▶ Play Example", key="play_example_btn", use_container_width=True):
-            try:
-                tts = get_tts()
-                example_audio = tts.generate_speech(
-                    st.session_state.corrected_text,
-                    sister="User"  # Use Sam (male) voice for example
-                )
-                st.session_state.example_audio = example_audio
-            except Exception as e:
-                st.error(f"TTS Error: {e}")
-        if st.session_state.get("example_audio"):
-            st.audio(st.session_state.example_audio, format="audio/mp3")
-
-    with col_record:
-        st.subheader(get_ui_text("your_turn"))
-        st.markdown(f"**{get_ui_text('record_instruction')}**")
-
-        # Audio recorder (only show if no recording yet)
-        if not st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
-            from audio_recorder_streamlit import audio_recorder
-            # Use dynamic key to prevent cache issues on retry
-            recorder_key = f"audio_recorder_{st.session_state.get('recorder_id', 0)}"
-            recorded_audio = audio_recorder(
-                text="",
-                recording_color="#e74c3c",
-                neutral_color="#3498db",
-                icon_name="microphone",
-                icon_size="2x",
-                sample_rate=16000,
-                key=recorder_key
-            )
-            # Save recording to session state for preview
-            if recorded_audio:
-                st.session_state.recorded_audio = recorded_audio
-                st.rerun()
-
-    # Preview recorded audio before processing
-    if st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
-        st.audio(st.session_state.recorded_audio, format="audio/wav")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button("🔄 録り直す", key="rerecord_btn", use_container_width=True):
-                st.session_state.recorded_audio = None
-                st.session_state.example_audio = None
-                st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
-                st.rerun()
-        with col_b:
-            if st.button("✅ 認識する", key="recognize_btn", type="primary", use_container_width=True):
-                with st.spinner("認識中..."):
-                    try:
-                        stt = get_stt()
-                        result = stt.transcribe_bytes(st.session_state.recorded_audio, filename="recording.wav", language=target_code)
-                        transcribed_text = result.get("text", "")
-                        if transcribed_text:
-                            st.session_state.spoken_text = transcribed_text
-                            st.rerun()
-                        else:
-                            st.warning("音声を認識できませんでした。")
-                            st.session_state.recorded_audio = None
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"STT Error: {e}")
-
-    # Show result and buttons (outside columns, full width)
-    if st.session_state.get("spoken_text"):
-        st.success(f"**認識結果:** {st.session_state.spoken_text}")
+        # Show results
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 録り直す", key="retry_btn", use_container_width=True):
-                st.session_state.spoken_text = ""
-                st.session_state.recorded_audio = None
-                st.session_state.example_audio = None
-                st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
+            st.subheader(get_ui_text("your_writing"))
+            st.info(feedback.get("original", st.session_state.target_text))
+
+        with col2:
+            st.subheader(get_ui_text("corrected"))
+            if feedback.get("is_correct"):
+                st.success(feedback.get("corrected", ""))
+            else:
+                st.warning(feedback.get("corrected", ""))
+
+        # Show corrections
+        corrections = feedback.get("corrections", [])
+        if corrections:
+            st.subheader("📝 Corrections:")
+            for c in corrections:
+                st.markdown(f"- **{c.get('error', '')}** → {c.get('fix', '')}")
+                st.caption(f"  💡 {c.get('explanation', '')}")
+
+        # Rating
+        rating = feedback.get("rating", 3)
+        st.markdown(f"**Rating:** {'⭐' * rating}")
+        st.info(f"💪 {feedback.get('encouragement', 'Keep going!')}")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(get_ui_text("back"), key="step4_back_btn"):
+                st.session_state.writing_feedback = None
+                st.session_state.step = 3
                 st.rerun()
         with col2:
-            if st.button("発音チェックへ ▶", key="proceed_btn", type="primary", use_container_width=True):
+            if st.button(get_ui_text("next"), type="primary", key="step4_next_btn"):
                 st.session_state.step = 5
                 st.rerun()
 
-    # Fallback: Manual text input
-    st.divider()
-    with st.expander("💬 テキストで入力する（音声認識がうまくいかない場合）"):
-        manual_text = st.text_input(
-            "発音した内容を入力:",
-            value=st.session_state.get("spoken_text", ""),
-            placeholder="I want to go shopping tomorrow",
-            key="manual_text_input"
-        )
-        if st.button("この内容で発音チェック", key="manual_proceed_btn", use_container_width=True):
-            if manual_text:
-                st.session_state.spoken_text = manual_text
-                st.session_state.step = 5
-                st.rerun()
+    # ========== SPEAKING MODE: Speaking Practice ==========
+    else:
+        st.header(f"4. {get_ui_text('speaking_practice')} [Speaking]")
+
+        st.success(f"📖 {get_ui_text('speaking_practice')}: **{st.session_state.corrected_text}**")
+
+        # Back button at top
+        if st.button(get_ui_text("back"), key="step4_back_btn"):
+            st.session_state.step = 3
+            st.rerun()
+
+        # Two columns: Example (left) and Recording (right)
+        col_example, col_record = st.columns(2)
+
+        with col_example:
+            st.subheader(get_ui_text("listen_example"))
+            if st.button("▶ Play Example", key="play_example_btn", use_container_width=True):
+                try:
+                    tts = get_tts()
+                    example_audio = tts.generate_speech(
+                        st.session_state.corrected_text,
+                        sister="User"  # Use Sam (male) voice for example
+                    )
+                    st.session_state.example_audio = example_audio
+                except Exception as e:
+                    st.error(f"TTS Error: {e}")
+            if st.session_state.get("example_audio"):
+                st.audio(st.session_state.example_audio, format="audio/mp3")
+
+        with col_record:
+            st.subheader(get_ui_text("your_turn"))
+            st.markdown(f"**{get_ui_text('record_instruction')}**")
+
+            # Audio recorder (only show if no recording yet)
+            if not st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
+                from audio_recorder_streamlit import audio_recorder
+                # Use dynamic key to prevent cache issues on retry
+                recorder_key = f"audio_recorder_{st.session_state.get('recorder_id', 0)}"
+                recorded_audio = audio_recorder(
+                    text="",
+                    recording_color="#e74c3c",
+                    neutral_color="#3498db",
+                    icon_name="microphone",
+                    icon_size="2x",
+                    sample_rate=16000,
+                    key=recorder_key
+                )
+                # Save recording to session state for preview
+                if recorded_audio:
+                    st.session_state.recorded_audio = recorded_audio
+                    st.rerun()
+
+        # Preview recorded audio before processing
+        if st.session_state.get("recorded_audio") and not st.session_state.get("spoken_text"):
+            st.audio(st.session_state.recorded_audio, format="audio/wav")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("🔄 録り直す", key="rerecord_btn", use_container_width=True):
+                    st.session_state.recorded_audio = None
+                    st.session_state.example_audio = None
+                    st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
+                    st.rerun()
+            with col_b:
+                if st.button("✅ 認識する", key="recognize_btn", type="primary", use_container_width=True):
+                    with st.spinner("認識中..."):
+                        try:
+                            stt = get_stt()
+                            result = stt.transcribe_bytes(st.session_state.recorded_audio, filename="recording.wav", language=target_code)
+                            transcribed_text = result.get("text", "")
+                            if transcribed_text:
+                                st.session_state.spoken_text = transcribed_text
+                                st.rerun()
+                            else:
+                                st.warning("音声を認識できませんでした。")
+                                st.session_state.recorded_audio = None
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"STT Error: {e}")
+
+        # Show result and buttons (outside columns, full width)
+        if st.session_state.get("spoken_text"):
+            st.success(f"**認識結果:** {st.session_state.spoken_text}")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 録り直す", key="retry_btn", use_container_width=True):
+                    st.session_state.spoken_text = ""
+                    st.session_state.recorded_audio = None
+                    st.session_state.example_audio = None
+                    st.session_state.recorder_id = st.session_state.get("recorder_id", 0) + 1
+                    st.rerun()
+            with col2:
+                if st.button("発音チェックへ ▶", key="proceed_btn", type="primary", use_container_width=True):
+                    st.session_state.step = 5
+                    st.rerun()
+
+        # Fallback: Manual text input
+        st.divider()
+        with st.expander("💬 テキストで入力する（音声認識がうまくいかない場合）"):
+            manual_text = st.text_input(
+                "発音した内容を入力:",
+                value=st.session_state.get("spoken_text", ""),
+                placeholder="I want to go shopping tomorrow",
+                key="manual_text_input"
+            )
+            if st.button("この内容で発音チェック", key="manual_proceed_btn", use_container_width=True):
+                if manual_text:
+                    st.session_state.spoken_text = manual_text
+                    st.session_state.step = 5
+                    st.rerun()
 
 # ===========================================
 # STEP 5: Speaking Correction

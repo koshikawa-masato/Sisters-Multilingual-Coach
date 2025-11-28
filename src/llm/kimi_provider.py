@@ -137,6 +137,88 @@ Respond in this JSON format:
                 "focus_point": "Please try again"
             }
 
+    def generate_conversation_starter(
+        self,
+        sister_name: str,
+        target_language: str = "English",
+        native_language: str = "日本語",
+        cefr_level: str = "A2"
+    ) -> dict:
+        """
+        Generate a conversation starter from the character (for listening mode).
+        The character initiates the conversation with a question or statement.
+        """
+        sister_personalities = {
+            "Botan": "cheerful, trendy, uses casual language, loves entertainment and social topics. Might ask about weekend plans, favorite shows, or social media",
+            "Kasho": "professional, logical, uses formal language, expert in business and music. Might ask about work, career goals, or professional topics",
+            "Yuri": "analytical, curious, interested in technology, programming, and science. Might ask about tech gadgets, coding, or interesting scientific topics",
+            "Ojisan": "friendly American uncle in his 50s, uses simple and clear language, loves sports (especially baseball and football), BBQ, cars, and dad jokes. Might ask about the game last night, weekend BBQ plans, or tell a dad joke"
+        }
+
+        level_guidelines = {
+            "A1": "Use very simple words and short sentences. Basic greetings and simple questions.",
+            "A2": "Use simple everyday vocabulary. Basic questions about daily life.",
+            "B1": "Use intermediate vocabulary. Can discuss familiar topics with some detail.",
+            "B2": "Use varied vocabulary and more complex sentences. Can discuss abstract topics.",
+            "C1": "Use advanced vocabulary, idioms, and nuanced expressions.",
+            "C2": "Use sophisticated language with cultural references and subtle nuances."
+        }
+
+        personality = sister_personalities.get(sister_name, sister_personalities["Botan"])
+        level_guide = level_guidelines.get(cefr_level, level_guidelines["A2"])
+
+        prompt = f"""You are {sister_name}, starting a conversation with a language learner.
+Personality: {personality}
+
+The learner's level: CEFR {cefr_level}
+Language guideline: {level_guide}
+
+Generate a natural conversation starter in {target_language} that {sister_name} would say.
+This should be a question or statement that invites a response.
+Keep it appropriate for the learner's level.
+
+Respond in this JSON format:
+{{
+    "prompt_target": "Your conversation starter in {target_language}",
+    "prompt_native": "Translation in {native_language}",
+    "context_hint": "Brief hint about what kind of response is expected (in {native_language})",
+    "words_to_highlight": ["key", "vocabulary", "words"]
+}}"""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": f"You are {sister_name}, starting a friendly conversation. Always respond in valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.8
+        )
+
+        import json
+        try:
+            result = json.loads(response.choices[0].message.content)
+            return {
+                "prompt_en": result.get("prompt_target", result.get("prompt_en", "")),
+                "prompt_jp": result.get("prompt_native", result.get("prompt_jp", "")),
+                "context_hint": result.get("context_hint", ""),
+                "words_to_highlight": result.get("words_to_highlight", [])
+            }
+        except json.JSONDecodeError:
+            # Fallback prompts per character
+            fallbacks = {
+                "Botan": {"prompt_en": "Hey! What are you up to this weekend?", "prompt_jp": "ねえ！今週末は何するの？"},
+                "Kasho": {"prompt_en": "Good morning. How is your project progressing?", "prompt_jp": "おはようございます。プロジェクトの進捗はいかがですか？"},
+                "Yuri": {"prompt_en": "I just read about a new AI model. Have you heard about it?", "prompt_jp": "新しいAIモデルについて読んだんだけど、聞いたことある？"},
+                "Ojisan": {"prompt_en": "Hey buddy! Did you catch the game last night?", "prompt_jp": "よお！昨日の試合見た？"}
+            }
+            fb = fallbacks.get(sister_name, fallbacks["Botan"])
+            return {
+                "prompt_en": fb["prompt_en"],
+                "prompt_jp": fb["prompt_jp"],
+                "context_hint": "",
+                "words_to_highlight": []
+            }
+
     def sister_response(
         self,
         sister_name: str,
