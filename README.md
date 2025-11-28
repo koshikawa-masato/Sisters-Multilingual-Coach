@@ -4,7 +4,21 @@ AI-powered language learning through natural conversation with unique character 
 
 ## Demo
 
-**Live Demo**: https://sisters-coach.ngrok.dev/?native=en&target=ja&level=A1&char=Botan
+**Live Demo**: https://coach.three-sisters.ai/?native=en&target=ja&level=A1&char=Botan
+
+### URL Parameters
+
+Create shareable learning presets:
+
+| Parameter | Values | Example |
+|-----------|--------|---------|
+| `native` | `en`, `ja`, `zh`, `ko`, `es` | Native language |
+| `target` | `en`, `ja`, `zh`, `ko`, `es` | Target language |
+| `level` | `A1`-`C2` | CEFR level |
+| `char` | `Botan`, `Kasho`, `Yuri`, `Ojisan` | Character |
+| `mode` | `speaking`, `listening` | Learning mode |
+
+Example: `?native=ja&target=en&level=A2&char=Botan&mode=speaking`
 
 ## Concept
 
@@ -14,30 +28,37 @@ Unlike traditional language learning apps that focus on drills and exercises, Si
 
 | Character | Personality | Best For |
 |-----------|-------------|----------|
-| **Botan** | Cheerful, trendy, casual | Daily conversation, entertainment, social topics |
-| **Kasho** | Professional, logical, formal | Business English, presentations, meetings |
-| **Yuri** | Analytical, curious, tech-savvy | Technology, programming, science topics |
-| **Ojisan** | Friendly American uncle, warm | Simple English, sports, everyday life |
+| **Botan** 🌸 | Cheerful, trendy, casual | Daily conversation, entertainment, social topics |
+| **Kasho** 🎵 | Professional, logical, formal | Business English, presentations, meetings |
+| **Yuri** 💻 | Analytical, curious, tech-savvy | Technology, programming, science topics |
+| **Ojisan** 👨 | Friendly American uncle, warm | Simple English, sports, everyday life |
 
 ## Features
+
+### Two Learning Modes
+
+| Mode | Flow | Description |
+|------|------|-------------|
+| **Speaking** 📤 | You → Characters | Practice expressing yourself |
+| **Listening** 📥 | Characters → You | Practice comprehension & response |
 
 ### CEFR Level Assessment
 - Initial placement test (Grammar, Vocabulary, Listening)
 - Automatic level detection (A1-C2)
 - Continuous performance tracking
-- Dynamic level adjustment recommendations
+- Dynamic level adjustment recommendations (every 3 sessions)
 
 ### 9-Step Learning Flow
 
 | Step | Name | Description |
 |------|------|-------------|
-| 1 | Japanese Input | Write what you want to say in Japanese |
-| 2 | Writing | Write it in English |
-| 3 | Correction | AI corrects your English |
+| 1 | Native Input | Write what you want to say in your native language |
+| 2 | Writing | Write it in your target language |
+| 3 | Correction | AI corrects your writing |
 | 4 | Speaking | Read aloud with example audio |
-| 5 | Pronunciation Check | Get pronunciation feedback via STT |
-| 6 | Listening | Hear all 4 characters respond |
-| 7 | Reading | Bilingual display (English + Japanese) |
+| 5 | Pronunciation | Get pronunciation feedback via STT |
+| 6 | Listening | Hear character respond |
+| 7 | Reading | Bilingual display |
 | 8 | Quiz | Comprehension check |
 | 9 | Feedback | Session summary and next steps |
 
@@ -47,6 +68,18 @@ Unlike traditional language learning apps that focus on drills and exercises, Si
 - **Speak** - Real microphone recording with speech recognition (OpenAI Whisper)
 - **Converse** - Natural dialogue powered by LLM
 - **Feedback** - Detailed corrections and improvement suggestions
+
+## Supported Languages
+
+All 5 languages are fully supported with localized UI:
+
+| Language | Code | Flag |
+|----------|------|------|
+| English | `en` | 🇺🇸 |
+| 日本語 (Japanese) | `ja` | 🇯🇵 |
+| 中文 (Chinese) | `zh` | 🇨🇳 |
+| 한국어 (Korean) | `ko` | 🇰🇷 |
+| Español (Spanish) | `es` | 🇪🇸 |
 
 ## Tech Stack
 
@@ -92,16 +125,6 @@ streamlit run src/app.py
 | `ELEVENLABS_VOICE_ID_KASHO` | Voice ID for Kasho character |
 | `ELEVENLABS_VOICE_ID_YURI` | Voice ID for Yuri character |
 | `ELEVENLABS_VOICE_ID_USER` | Voice ID for Ojisan/example |
-
-## Supported Languages
-
-| Language | Status |
-|----------|--------|
-| English | Active |
-| 中文 (Chinese) | Planned |
-| 日本語 (Japanese) | Planned |
-| 한국어 (Korean) | Future |
-| Español (Spanish) | Future |
 
 ## Background
 
